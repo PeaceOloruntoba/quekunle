@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -222,7 +222,22 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     else { setRecording(false); setRecordingSeconds(0); }
   }
 
-  function time(value: string) { return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+  function time(value: string) { return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); }
+  function localDayKey(value: string) {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
+  function dateGroup(value: string) {
+    const date = new Date(value);
+    const today = new Date();
+    const currentDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const messageDay = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const daysAgo = Math.floor((currentDay - messageDay) / 86_400_000);
+    if (daysAgo <= 0) return 'Today';
+    if (daysAgo === 1) return 'Yesterday';
+    if (daysAgo < 7) return date.toLocaleDateString([], { weekday: 'long' });
+    return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  }
   function replyText(message: Message) {
     if (message.body) return message.body;
     if (message.attachment_type?.startsWith('image/')) return 'Photo';
@@ -239,12 +254,12 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
       <button className="chat-logout" onClick={logout} title="Log out"><LogOut size={17}/></button>
     </header>
     <div className="chat-wallpaper">
-      <div className="chat-date">A LITTLE SPACE FOR US <span>♥</span></div>
       <div className="message-list" ref={list}>
-        {messages.map(message => {
+        {messages.map((message, index) => {
           const mine = message.sender_id === me.id;
+          const dayChanged = index === 0 || localDayKey(messages[index - 1].created_at) !== localDayKey(message.created_at);
           const groups = Array.from(new Set(message.reactions.map(reaction => reaction.emoji)));
-          return <article key={message.id} className={`message ${mine ? 'mine' : 'theirs'}`}>
+          return <Fragment key={message.id}>{dayChanged && <div className="day-separator"><span>{dateGroup(message.created_at)}</span></div>}<article className={`message ${mine ? 'mine' : 'theirs'}`}>
             <div className="message-bubble">
               {message.reply_to_id && <div className="reply-preview"><strong>{message.reply_sender_name || 'A message'}</strong><span>{message.reply_body || 'Attachment'}</span></div>}
               {message.attachment_url && <div className="attachment">
@@ -266,7 +281,7 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
               <button onClick={() => setReactingTo(reactingTo === message.id ? null : message.id)} title="React to this message" aria-label="React"><SmilePlus size={15}/></button>
             </div>
             {reactingTo === message.id && <div className="message-reaction-picker">{emojis.map(emoji => <button key={emoji} onClick={() => react(message.id, emoji)} aria-label={`React ${emoji}`}>{emoji}</button>)}</div>}
-          </article>;
+          </article></Fragment>;
         })}
         {messages.length === 0 && <div className="empty-chat"><span>🌿</span><strong>Your little world is waiting.</strong><p>Say hi and make the first memory.</p></div>}
       </div>
