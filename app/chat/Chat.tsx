@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Reply, Send, Smile, SmilePlus, Square, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -21,6 +21,39 @@ type Message = {
   read_at: string | null;
 };
 const emojis = ['❤️', '🥰', '😂', '😊', '😍', '💕', '✨', '🌿', '🤗', '🥹', '💙', '👍'];
+const waveBars = [7, 14, 10, 20, 12, 25, 16, 9, 21, 13, 27, 17, 11, 23, 14, 8, 19, 26, 12, 18, 9, 24, 15, 21, 10, 17, 27, 13, 8, 20, 14, 23, 11, 18, 7, 15];
+function formatDuration(seconds: number) {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const rest = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${rest}`;
+}
+function VoiceNotePlayer({ src }: { src: string }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  const progress = duration ? position / duration : 0;
+  async function togglePlayback() {
+    if (!audio.current) return;
+    if (audio.current.paused) { try { await audio.current.play(); } catch { setPlaying(false); } }
+    else audio.current.pause();
+  }
+  function seek(event: React.MouseEvent<HTMLButtonElement>) {
+    if (!audio.current || !duration) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    audio.current.currentTime = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)) * duration;
+  }
+  return <div className="voice-note-player">
+    <audio ref={audio} src={src} preload="metadata" onLoadedMetadata={event => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)} onTimeUpdate={event => setPosition(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setPosition(0); }}/>
+    <button type="button" className="voice-play" onClick={togglePlayback} aria-label={playing ? 'Pause voice note' : 'Play voice note'}>{playing ? <Pause size={17} fill="currentColor"/> : <Play size={17} fill="currentColor"/>}</button>
+    <div className="voice-player-track">
+      <button type="button" className="voice-waveform" onClick={seek} aria-label="Seek through voice note">
+        {waveBars.map((height, index) => <span key={index} style={{ height, opacity: index / waveBars.length <= progress ? 1 : 0.38 }}/ >)}
+      </button>
+      <div className="voice-player-caption"><span>VOICE NOTE</span><time>{formatDuration(playing ? position : duration)}</time></div>
+    </div>
+  </div>;
+}
 
 export default function Chat({ me }: { me: { id: string; name: string } }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -31,11 +64,15 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
   const [reactingTo, setReactingTo] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const recordingStartedAt = useRef(0);
+  const discardRecording = useRef(false);
   const socket = useRef<WebSocket | null>(null);
   const router = useRouter();
 
@@ -99,13 +136,26 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     return () => { stopped = true; clearTimeout(retry); socket.current?.close(); socket.current = null; };
   }, [load, mergeMessage]);
 
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecordingSeconds(Math.floor((Date.now() - recordingStartedAt.current) / 1000)), 250);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => {
+    if (!file?.type.startsWith('audio/')) { setAudioPreviewUrl(null); return; }
+    const url = URL.createObjectURL(file);
+    setAudioPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
 
   async function upload(selected: File) {
     const response = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: selected.name, type: selected.type, size: selected.size }) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
-    const uploaded = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': selected.type }, body: selected });
+    const uploaded = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': data.type }, body: selected });
     if (!uploaded.ok) throw new Error('The file could not be uploaded. Check Neon Object Storage access and try again.');
     return { key: data.key, name: data.name, type: data.type };
   }
@@ -147,16 +197,29 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     if (recording) { recorder.current?.stop(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      recorder.current = mediaRecorder; chunks.current = [];
-      mediaRecorder.ondataavailable = event => chunks.current.push(event.data);
+      const preferred = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(type => typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
+      recorder.current = mediaRecorder; chunks.current = []; discardRecording.current = false;
+      mediaRecorder.ondataavailable = event => { if (event.data.size) chunks.current.push(event.data); };
       mediaRecorder.onstop = () => {
         stream.getTracks().forEach(track => track.stop());
-        const voice = new File(chunks.current, `voice-note-${Date.now()}.webm`, { type: mediaRecorder.mimeType || 'audio/webm' });
-        setFile(voice); setRecording(false);
+        if (!discardRecording.current) {
+          const type = mediaRecorder.mimeType || 'audio/webm';
+          const extension = type.split(';')[0].split('/')[1]?.replace('3gpp', '3gp') || 'webm';
+          const voice = new File(chunks.current, `voice-note-${Date.now()}.${extension}`, { type });
+          if (voice.size) setFile(voice);
+          else setError('That recording was empty. Try recording your note again.');
+        }
+        discardRecording.current = false; setRecording(false); setRecordingSeconds(0);
       };
-      mediaRecorder.start(); setRecording(true);
+      mediaRecorder.start(); recordingStartedAt.current = Date.now(); setRecordingSeconds(0); setFile(null); setError(''); setRecording(true);
     } catch { setError('Allow microphone access to record a voice note.'); }
+  }
+
+  function cancelRecording() {
+    discardRecording.current = true;
+    if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop();
+    else { setRecording(false); setRecordingSeconds(0); }
   }
 
   function time(value: string) { return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
