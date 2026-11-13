@@ -48,7 +48,7 @@ function VoiceNotePlayer({ src }: { src: string }) {
     <button type="button" className="voice-play" onClick={togglePlayback} aria-label={playing ? 'Pause voice note' : 'Play voice note'}>{playing ? <Pause size={17} fill="currentColor"/> : <Play size={17} fill="currentColor"/>}</button>
     <div className="voice-player-track">
       <button type="button" className="voice-waveform" onClick={seek} aria-label="Seek through voice note">
-        {waveBars.map((height, index) => <span key={index} style={{ height, opacity: index / waveBars.length <= progress ? 1 : 0.38 }}/ >)}
+        {waveBars.map((height, index) => <span key={index} style={{ height, opacity: index / waveBars.length <= progress ? 1 : 0.38 }}/>)}
       </button>
       <div className="voice-player-caption"><span>VOICE NOTE</span><time>{formatDuration(playing ? position : duration)}</time></div>
     </div>
@@ -250,7 +250,7 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
               {message.attachment_url && <div className="attachment">
                 {message.attachment_type?.startsWith('image/') ? <a href={message.attachment_url} target="_blank" rel="noreferrer"><img src={message.attachment_url} alt={message.attachment_name || 'Shared image'}/></a>
                   : message.attachment_type?.startsWith('video/') ? <video src={message.attachment_url} controls/>
-                    : message.attachment_type?.startsWith('audio/') ? <audio src={message.attachment_url} controls/>
+                    : message.attachment_type?.startsWith('audio/') ? <VoiceNotePlayer src={message.attachment_url}/>
                       : <a className="file-link" href={message.attachment_url} target="_blank" rel="noreferrer"><FileText size={19}/>{message.attachment_name}</a>}
               </div>}
               {message.body && <p>{message.body}</p>}
@@ -274,14 +274,16 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     <div className="composer-wrap">
       {error && <div className="chat-error">{error}<button onClick={() => setError('')}><X size={14}/></button></div>}
       {replyingTo && <div className="replying-banner"><div><strong>Replying to {replyingTo.sender_name}</strong><span>{replyText(replyingTo)}</span></div><button onClick={() => setReplyingTo(null)} aria-label="Cancel reply"><X size={16}/></button></div>}
-      {file && <div className="file-chip"><Paperclip size={14}/>{file.name}<button onClick={() => setFile(null)} aria-label="Remove attachment"><X size={15}/></button></div>}
+      {recording && <div className="recording-banner"><span className="recording-indicator"/><div className="recording-copy"><strong>Recording voice note</strong><span>Speak naturally · {formatDuration(recordingSeconds)}</span></div><div className="recording-wave" aria-hidden="true">{waveBars.slice(0, 12).map((height, index) => <span key={index} style={{ height: Math.max(6, height * 0.72), animationDelay: `${index * 45}ms` }}/>)}</div><button type="button" className="recording-cancel" onClick={cancelRecording}>Cancel</button><button type="button" className="recording-stop" onClick={record} aria-label="Stop recording"><Square size={13} fill="currentColor"/></button></div>}
+      {file?.type.startsWith('audio/') && audioPreviewUrl && <div className="voice-draft"><div className="voice-draft-heading"><div><strong>Voice note ready</strong><span>Listen before sending</span></div><button type="button" onClick={() => setFile(null)} aria-label="Remove voice note"><X size={16}/></button></div><VoiceNotePlayer src={audioPreviewUrl}/></div>}
+      {file && !file.type.startsWith('audio/') && <div className="file-chip"><Paperclip size={14}/>{file.name}<button type="button" onClick={() => setFile(null)} aria-label="Remove attachment"><X size={15}/></button></div>}
       {emojiOpen && <div className="emoji-picker">{emojis.map(emoji => <button key={emoji} onClick={() => setBody(value => value + emoji)}>{emoji}</button>)}</div>}
       <form className="composer" onSubmit={send}>
         <button type="button" className="tool-button" onClick={() => setEmojiOpen(!emojiOpen)} aria-label="Choose emoji"><Smile size={21}/></button>
         <label className="tool-button attach-button" aria-label="Attach a file"><Paperclip size={21}/><input ref={input} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv" onChange={event => setFile(event.target.files?.[0] || null)}/></label>
         <input className="message-input" value={body} onChange={event => setBody(event.target.value)} placeholder="Write something sweet…" aria-label="Message"/>
         <button type="button" className={`tool-button mic-button ${recording ? 'recording' : ''}`} onClick={record} aria-label={recording ? 'Stop recording' : 'Record voice note'}>{recording ? <Square size={18} fill="currentColor"/> : <Mic size={21}/>}</button>
-        <button className="send-button" disabled={sending || (!body.trim() && !file)} aria-label="Send message">{sending ? <span className="sending-dot"/> : <Send size={18}/>}</button>
+        <button className="send-button" disabled={sending || recording || (!body.trim() && !file)} aria-label="Send message">{sending ? <span className="sending-dot"/> : <Send size={18}/>}</button>
       </form>
       <div className="composer-note">Messages between just the two of you <span>♥</span></div>
     </div>
