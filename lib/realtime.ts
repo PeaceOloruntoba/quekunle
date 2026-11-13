@@ -15,7 +15,14 @@ async function ensureRedis() {
   if (!url) return;
   if (state.starting) return state.starting;
   state.starting = (async () => {
-    state.publisher ??= new Redis(url, { maxRetriesPerRequest: 2, retryStrategy: n => Math.min(n * 250, 3000) });
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol === 'rediss:' && !parsedUrl.port) parsedUrl.port = '6379';
+    const redisOptions = {
+      maxRetriesPerRequest: 2,
+      retryStrategy: (n: number) => Math.min(n * 250, 3000),
+      ...(parsedUrl.protocol === 'rediss:' ? { tls: { servername: parsedUrl.hostname } } : {}),
+    };
+    state.publisher ??= new Redis(parsedUrl.toString(), redisOptions);
     state.subscriber ??= state.publisher.duplicate();
     if (state.subscriber.status !== 'ready' && state.subscriber.status !== 'connect') await state.subscriber.connect().catch(() => undefined);
     await state.subscriber.subscribe(CHANNEL);
@@ -41,3 +48,4 @@ export async function publishRealtime(event: RealtimeEvent) {
   if (!state.publisher) throw new Error('REDIS_URL is required for realtime delivery.');
   await state.publisher.publish(CHANNEL, payload);
 }
+
