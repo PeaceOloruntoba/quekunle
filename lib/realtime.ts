@@ -1,6 +1,9 @@
 import Redis from 'ioredis';
 
-type ClientEvent = { type: 'message'; message: Record<string, unknown> } | { type: 'read'; ids: number[]; read_at: string };
+type RealtimeEvent =
+  | { type: 'message'; message: Record<string, unknown> }
+  | { type: 'read'; ids: number[]; read_at: string }
+  | { type: 'reaction'; message_id: number; user_id: string; emoji: string; active: boolean };
 type Socket = { send: (data: string) => void; readyState: number };
 type State = { sockets: Set<Socket>; publisher?: Redis; subscriber?: Redis; starting?: Promise<void> };
 const shared = globalThis as typeof globalThis & { __quekunleRealtime?: State };
@@ -31,13 +34,10 @@ function broadcast(payload: string) {
 }
 export function addSocket(socket: Socket) { state.sockets.add(socket); void ensureRedis().catch(err => console.error('[chat] realtime subscriber failed', err)); }
 export function removeSocket(socket: Socket) { state.sockets.delete(socket); }
-export async function publishRealtime(event: ClientEvent) {
+export async function publishRealtime(event: RealtimeEvent) {
   const payload = JSON.stringify(event);
   if (!process.env.REDIS_URL) { broadcast(payload); return; }
   await ensureRedis();
   if (!state.publisher) throw new Error('REDIS_URL is required for realtime delivery.');
   await state.publisher.publish(CHANNEL, payload);
 }
-
-
-
