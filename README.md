@@ -1,19 +1,21 @@
 # Quekunle
 
-A small, private two-person chat for Queen Moyosore and Peace Adekunle, built with Next.js, Neon Postgres, and Vercel Blob.
+A small, private two-person chat for Queen Moyosore and Peace Adekunle, built with Next.js, Neon Postgres, Neon Object Storage, and WebSockets.
 
-## Setup
+## Configure
 
-1. Create a Neon database and run [`db/schema.sql`](db/schema.sql) in its SQL editor.
-2. Copy `.env.example` to `.env.local`. Set `DATABASE_URL`, a random `SESSION_SECRET` of at least 32 characters, and passwords for `QUEEN_PASSWORD` and `PEACE_PASSWORD`. Set `BLOB_READ_WRITE_TOKEN` from a Vercel Blob store for attachments and voice notes.
-3. Install dependencies with `npm install`.
-4. Seed the two accounts with `npm run db:seed`.
-5. Start locally with `npm run dev`; import the repository into Vercel and add the same environment variables to deploy.
+Copy `.env.example` to `.env.local`, then set:
 
-The seeded usernames are `Quenzsome` (Queen Moyosore) and `Adekunle` (Peace Adekunle). The seed script hashes passwords with bcrypt. Set the respective secret env values to the passwords you provided before running it. On conflict, seeding updates the display name but does not reset an existing password hash.
+- `DATABASE_URL` and preferably `DATABASE_URL_POOLED` from Neon.
+- `SESSION_SECRET` to a random string of at least 32 characters.
+- `QUEEN_PASSWORD` and `PEACE_PASSWORD` to the two account passwords.
+- `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `S3_BUCKET` from Neon Object Storage.
+- `REDIS_URL` from a Redis provider such as the Vercel Marketplace Upstash integration. Redis provides cross-instance WebSocket fan-out; Postgres remains the durable source of truth.
 
-The chat refreshes every 2.5 seconds and updates read receipts when the chat is open. It supports image, video, audio/voice-note and common document uploads up to 50 MB. Uploads use public Vercel Blob URLs, so only share files suitable for access by anyone who obtains the link. Voice recording requires browser microphone permission. Call buttons are intentionally absent until calls are implemented.
+Create the private `quekunle` bucket in Neon Object Storage if it does not already exist. The app uploads through the S3 API and serves media through 15-minute signed URLs after checking the session.
 
-## SEO and deployment
+Run the SQL in [`db/schema.sql`](db/schema.sql) in the Neon SQL Editor. Then run `npm install`, `npm run db:seed`, and `npm run dev`. Deploy the repository to Vercel and set the same variables in the project settings. Set `NEXT_PUBLIC_SITE_URL` to the production origin.
 
-The app includes metadata, Open Graph details, a page title and description, and a configurable `NEXT_PUBLIC_SITE_URL`. The landing page is indexable; `/chat` redirects unauthenticated visitors to login.
+The seeded usernames are `Quenzsome` (Queen Moyosore) and `Adekunle` (Peace Adekunle). Passwords are read only from environment variables and stored as bcrypt hashes. Realtime uses Vercel's WebSocket Function support and Redis pub/sub to deliver messages between function instances. Clients reconnect with backoff and reload the latest message history from Postgres. Without `REDIS_URL`, same-instance development delivery works, but cross-instance delivery is unavailable.
+
+Uploads support images, videos, audio/voice notes, PDF, Word and text/CSV documents up to 50 MB. Voice recording needs browser microphone permission. Voice and video calling are not included yet.
