@@ -4,10 +4,10 @@ import { database } from '@/lib/db';
 import { bucketName, getStorage } from '@/lib/storage';
 import { publishRealtime } from '@/lib/realtime';
 export const dynamic = 'force-dynamic';
-function withUrl<T extends { id: unknown; attachment_key?: string | null; reply_to_id?: unknown }>(row: T) {
-  const { attachment_key, ...rest } = row;
-  const attachment_url = attachment_key ? `/api/media/${attachment_key.split('/').map(encodeURIComponent).join('/')}` : null;
-  return { ...rest, id: Number(rest.id), reply_to_id: rest.reply_to_id == null ? null : Number(rest.reply_to_id), attachment_url };
+function withUrl(row: Record<string, unknown>) {
+  const { id, attachment_key, reply_to_id, ...rest } = row;
+  const attachment_url = typeof attachment_key === 'string' ? `/api/media/${attachment_key.split('/').map(encodeURIComponent).join('/')}` : null;
+  return { ...rest, id: Number(id), reply_to_id: reply_to_id == null ? null : Number(reply_to_id), attachment_url };
 }
 export async function GET() {
   const me = await getSession();
