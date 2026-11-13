@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSession } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { bucketName, getStorage } from '@/lib/storage';
 import { publishRealtime } from '@/lib/realtime';
 export const dynamic = 'force-dynamic';
-async function withUrl<T extends { attachment_key?: string | null }>(row: T) {
+function withUrl<T extends { attachment_key?: string | null }>(row: T) {
   const { attachment_key, ...rest } = row;
-  const attachment_url = attachment_key ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: attachment_key }), { expiresIn: 15 * 60 }) : null;
-  return { ...rest, attachment_url };
+  const attachment_url = attachment_key ? `/api/media/${attachment_key.split('/').map(encodeURIComponent).join('/')}` : null;
+  return { ...rest, id: Number((rest as { id?: unknown }).id), attachment_url };
 }
 export async function GET() {
   const me = await getSession();
@@ -21,7 +19,7 @@ export async function GET() {
     try { await publishRealtime({ type: 'read', ids: marked.map(row => Number(row.id)), read_at: String(marked[0].read_at) }); }
     catch (error) { console.error('[chat] receipt broadcast failed', error); }
   }
-  const messages = await Promise.all(rows.reverse().map(row => withUrl(row)));
+  const messages = rows.reverse().map(row => withUrl(row));
   return NextResponse.json({ messages, me: me.id });
 }
 export async function POST(request: Request) {
@@ -31,11 +29,14 @@ export async function POST(request: Request) {
   const body = typeof data.body === 'string' ? data.body.trim().slice(0, 5000) : '';
   const attachment = data.attachment;
   if (!body && !attachment) return NextResponse.json({ error: 'Write a message or attach a file.' }, { status: 400 });
-  if (attachment && (typeof attachment.key !== 'string' || !attachment.key.startsWith('chat/') || typeof attachment.name !== 'string' || typeof attachment.type !== 'string')) return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400 });
+  if (attachment && (typeof attachment.key !== 'string' || !attachment.key.startsWith('chat/') || typeof attachment.name !== 'string' || typeof attachment.type !== 'string' || attachment.name.length > 180 || attachment.type.length > 100)) return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400 });
   const sql = database();
   const rows = await sql`INSERT INTO messages (sender_id, body, attachment_key, attachment_name, attachment_type) VALUES (${me.id}, ${body}, ${attachment?.key ?? null}, ${attachment?.name ?? null}, ${attachment?.type ?? null}) RETURNING id, sender_id, ${me.display_name}::text AS sender_name, body, attachment_key, attachment_name, attachment_type, created_at, read_at`;
-  const message = await withUrl(rows[0]);
+  const message = withUrl(rows[0]);
   try { await publishRealtime({ type: 'message', message }); }
   catch (error) { console.error('[chat] message saved but realtime publish failed', error); }
   return NextResponse.json({ ok: true, message }, { status: 201 });
 }
+
+
+

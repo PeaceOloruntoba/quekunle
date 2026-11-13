@@ -1,17 +1,42 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Send, Smile, Square, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';\nimport Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 type Message = { id: number; sender_id: string; sender_name: string; body: string; attachment_url: string | null; attachment_name: string | null; attachment_type: string | null; created_at: string; read_at: string | null };
 const emojis = ['❤️','🥰','😘','😂','😊','😍','💕','✨','🌿','🤗','🥹','💙'];
 export default function Chat({ me }: { me: { id: string; name: string } }) {
   const [messages, setMessages] = useState<Message[]>([]); const [body, setBody] = useState(''); const [file, setFile] = useState<File|null>(null); const [sending, setSending] = useState(false); const [emojiOpen, setEmojiOpen] = useState(false); const [recording, setRecording] = useState(false); const [error, setError] = useState('');
   const list = useRef<HTMLDivElement>(null); const input = useRef<HTMLInputElement>(null); const recorder = useRef<MediaRecorder|null>(null); const chunks = useRef<Blob[]>([]); const router = useRouter();
-  const load = useCallback(async () => { try { const r = await fetch('/api/messages', { cache: 'no-store' }); if (r.status === 401) { router.push('/login'); return; } const d = await r.json(); setMessages(d.messages); } catch {} }, [router]);
-  useEffect(() => { load(); const t = setInterval(load, 2500); return () => clearInterval(t); }, [load]);
+  const socket = useRef<WebSocket | null>(null);
+  const load = useCallback(async () => { try { const r = await fetch('/api/messages', { cache: 'no-store' }); if (r.status === 401) { router.push('/login'); return; } const d = await r.json(); setMessages(previous => { const merged = new Map<number, Message>(); previous.forEach(m => merged.set(m.id, m)); for (const m of d.messages as Message[]) merged.set(m.id, { ...merged.get(m.id), ...m, read_at: m.read_at ?? merged.get(m.id)?.read_at ?? null }); return Array.from(merged.values()).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); }); } catch {} }, [router]);
+  useEffect(() => {
+    let stopped = false; let delay = 1000; let retry: ReturnType<typeof setTimeout>;
+    const connect = () => {
+      if (stopped) return;
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${location.host}/api/ws`); socket.current = ws;
+      ws.onopen = () => { delay = 1000; void load(); };
+      ws.onmessage = event => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'message' && data.message) {
+            const incoming = data.message as Message;
+            setMessages(previous => previous.some(m => m.id === incoming.id) ? previous : [...previous, incoming].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+          } else if (data.type === 'read' && Array.isArray(data.ids)) {
+            const ids = new Set<number>(data.ids); setMessages(previous => previous.map(m => ids.has(m.id) ? { ...m, read_at: data.read_at } : m));
+          }
+        } catch { /* Ignore malformed frames and keep the connection alive. */ }
+      };
+      ws.onclose = () => { if (stopped) return; retry = setTimeout(connect, delay); delay = Math.min(delay * 2, 20000); };
+      ws.onerror = () => ws.close();
+    };
+    void load(); connect();
+    return () => { stopped = true; clearTimeout(retry); socket.current?.close(); socket.current = null; };
+  }, [load]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
-  async function upload(f: File) { const form = new FormData(); form.append('file', f); const r = await fetch('/api/upload', { method: 'POST', body: form }); const d = await r.json(); if (!r.ok) throw new Error(d.error); return d; }
-  async function send(e?: React.FormEvent) { e?.preventDefault(); if ((!body.trim() && !file) || sending) return; setSending(true); setError(''); try { const attachment = file ? await upload(file) : undefined; const r = await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, attachment }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); setBody(''); setFile(null); if (input.current) input.current.value = ''; await load(); } catch (e) { setError(e instanceof Error ? e.message : 'Could not send.'); } finally { setSending(false); } }
+  async function upload(f: File) { const r = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name, type: f.type, size: f.size }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); const uploaded = await fetch(d.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type }, body: f }); if (!uploaded.ok) throw new Error('The file could not be uploaded. Check Neon Object Storage access and try again.'); return { key: d.key, name: d.name, type: d.type }; }
+  async function send(e?: React.FormEvent) { e?.preventDefault(); if ((!body.trim() && !file) || sending) return; setSending(true); setError(''); try { const attachment = file ? await upload(file) : undefined; const r = await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, attachment }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error); if (d.message) setMessages(previous => previous.some(m => m.id === d.message.id) ? previous : [...previous, d.message].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())); setBody(''); setFile(null); if (input.current) input.current.value = ''; } catch (e) { setError(e instanceof Error ? e.message : 'Could not send.'); } finally { setSending(false); } }
   async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); router.push('/'); router.refresh(); }
   async function record() { if (recording) { recorder.current?.stop(); return; } try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mr = new MediaRecorder(stream); recorder.current = mr; chunks.current = []; mr.ondataavailable = e => chunks.current.push(e.data); mr.onstop = async () => { stream.getTracks().forEach(t => t.stop()); const voice = new File(chunks.current, `voice-note-${Date.now()}.webm`, { type: mr.mimeType || 'audio/webm' }); setFile(voice); setRecording(false); }; mr.start(); setRecording(true); } catch { setError('Allow microphone access to record a voice note.'); } }
   function time(s: string) { return new Date(s).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
@@ -19,5 +44,7 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     <div className="chat-wallpaper"><div className="chat-date">A LITTLE SPACE FOR US <span>♥</span></div><div className="message-list" ref={list}>{messages.map(m => { const mine = m.sender_id === me.id; return <article key={m.id} className={`message ${mine ? 'mine' : 'theirs'}`}><div className="message-bubble">{m.attachment_url && <div className="attachment">{m.attachment_type?.startsWith('image/') ? <a href={m.attachment_url} target="_blank" rel="noreferrer"><img src={m.attachment_url} alt={m.attachment_name || 'Shared image'}/></a> : m.attachment_type?.startsWith('video/') ? <video src={m.attachment_url} controls/> : m.attachment_type?.startsWith('audio/') ? <audio src={m.attachment_url} controls/> : <a className="file-link" href={m.attachment_url} target="_blank" rel="noreferrer"><FileText size={19}/>{m.attachment_name}</a>}</div>}{m.body && <p>{m.body}</p>}<div className="message-meta"><time>{time(m.created_at)}</time>{mine && (m.read_at ? <CheckCheck size={15} className="read-check"/> : <Check size={15}/>)}</div></div></article>; })}{messages.length === 0 && <div className="empty-chat"><span>🌿</span><strong>Your little world is waiting.</strong><p>Say hi and make the first memory.</p></div>}</div></div>
     <div className="composer-wrap">{error && <div className="chat-error">{error}<button onClick={() => setError('')}><X size={14}/></button></div>}{file && <div className="file-chip"><Paperclip size={14}/>{file.name}<button onClick={() => setFile(null)} aria-label="Remove attachment"><X size={15}/></button></div>}{emojiOpen && <div className="emoji-picker">{emojis.map(e => <button key={e} onClick={() => setBody(v => v + e)}>{e}</button>)}</div>}<form className="composer" onSubmit={send}><button type="button" className="tool-button" onClick={() => setEmojiOpen(!emojiOpen)} aria-label="Choose emoji"><Smile size={21}/></button><label className="tool-button attach-button" aria-label="Attach a file"><Paperclip size={21}/><input ref={input} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv" onChange={e => setFile(e.target.files?.[0] || null)}/></label><input className="message-input" value={body} onChange={e => setBody(e.target.value)} placeholder="Write something sweet…" aria-label="Message"/><button type="button" className={`tool-button mic-button ${recording ? 'recording' : ''}`} onClick={record} aria-label={recording ? 'Stop recording' : 'Record voice note'}>{recording ? <Square size={18} fill="currentColor"/> : <Mic size={21}/>}</button><button className="send-button" disabled={sending || (!body.trim() && !file)} aria-label="Send message">{sending ? <span className="sending-dot"/> : <Send size={18}/>}</button></form><div className="composer-note">Messages between just the two of you <Heart size={11} fill="currentColor"/></div></div></main>;
 }
+
+
 
 

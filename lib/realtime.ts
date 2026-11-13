@@ -1,5 +1,4 @@
 import Redis from 'ioredis';
-import type { WebSocketData } from '@vercel/functions';
 
 type ClientEvent = { type: 'message'; message: Record<string, unknown> } | { type: 'read'; ids: number[]; read_at: string };
 type Socket = { send: (data: string) => void; readyState: number };
@@ -39,4 +38,6 @@ export async function publishRealtime(event: ClientEvent) {
   if (!state.publisher) throw new Error('REDIS_URL is required for realtime delivery.');
   await state.publisher.publish(CHANNEL, payload);
 }
-export type IncomingMessage = WebSocketData;
+
+
+
