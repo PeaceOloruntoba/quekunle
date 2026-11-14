@@ -38,5 +38,4 @@ CREATE TABLE IF NOT EXISTS chat_settings (
 );
 ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper TEXT NOT NULL DEFAULT 'garden';
 ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper_image_key TEXT;
-UPDATE chat_settings SET wallpaper = CASE theme WHEN 'ocean' THEN 'sky' WHEN 'blossom' THEN 'petals' WHEN 'night' THEN 'night' ELSE 'garden' END WHERE wallpaper = 'garden';
 INSERT INTO chat_settings (id, theme, wallpaper) VALUES (1, 'garden', 'garden') ON CONFLICT (id) DO NOTHING;

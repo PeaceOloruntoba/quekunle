@@ -19,7 +19,6 @@ async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS chat_settings (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1), theme TEXT NOT NULL DEFAULT 'garden', wallpaper TEXT NOT NULL DEFAULT 'garden', wallpaper_image_key TEXT, updated_by TEXT REFERENCES users(id) ON DELETE SET NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
   await sql`ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper TEXT NOT NULL DEFAULT 'garden'`;
   await sql`ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper_image_key TEXT`;
-  await sql`UPDATE chat_settings SET wallpaper = CASE theme WHEN 'ocean' THEN 'sky' WHEN 'blossom' THEN 'petals' WHEN 'night' THEN 'night' ELSE 'garden' END WHERE wallpaper = 'garden'`;
   await sql`INSERT INTO chat_settings (id, theme, wallpaper) VALUES (1, 'garden', 'garden') ON CONFLICT (id) DO NOTHING`;
   return sql;
 }
