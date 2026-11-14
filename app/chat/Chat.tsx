@@ -55,9 +55,10 @@ function VoiceNotePlayer({ src }: { src: string }) {
   </div>;
 }
 
-export default function Chat({ me, initialTheme }: { me: { id: string; name: string }; initialTheme: string }) {
+export default function Chat({ me, initialWallpaper, initialWallpaperUrl }: { me: { id: string; name: string }; initialWallpaper: string; initialWallpaperUrl: string | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [theme, setTheme] = useState(initialTheme);
+  const [wallpaper, setWallpaper] = useState(initialWallpaper);
+  const [wallpaperImage, setWallpaperImage] = useState<string | null>(initialWallpaperUrl);
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -110,7 +111,7 @@ export default function Chat({ me, initialTheme }: { me: { id: string; name: str
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'message' && data.message) mergeMessage(data.message as Message);
-          if (data.type === 'theme' && typeof data.theme === 'string') setTheme(data.theme);
+          if (data.type === 'wallpaper' && typeof data.wallpaper === 'string') { setWallpaper(data.wallpaper); setWallpaperImage(data.wallpaper_image_url ?? null); }
           if (data.type === 'read' && Array.isArray(data.ids)) {
             const ids = new Set<number>(data.ids);
             setMessages(previous => previous.map(message => ids.has(message.id) ? { ...message, read_at: data.read_at } : message));
@@ -248,7 +249,7 @@ export default function Chat({ me, initialTheme }: { me: { id: string; name: str
     return message.attachment_name || 'Attachment';
   }
 
-  return <main className={`chat-page theme-${theme}`}>
+  return <main className={`chat-page wallpaper-${wallpaper}`} style={wallpaper === 'custom' && wallpaperImage ? { ['--chat-wallpaper-image' as string]: `url("${wallpaperImage}")` } as React.CSSProperties : undefined}>
     <header className="chat-header">
       <Link href="/" className="chat-back" aria-label="Home"><ArrowLeft size={19}/></Link>
       <div className="chat-avatar">{me.name.startsWith('Queen') ? 'Q' : 'P'}<span>✿</span></div>
