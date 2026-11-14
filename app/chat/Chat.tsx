@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -55,8 +55,9 @@ function VoiceNotePlayer({ src }: { src: string }) {
   </div>;
 }
 
-export default function Chat({ me }: { me: { id: string; name: string } }) {
+export default function Chat({ me, initialTheme }: { me: { id: string; name: string }; initialTheme: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [theme, setTheme] = useState(initialTheme);
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -109,6 +110,7 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'message' && data.message) mergeMessage(data.message as Message);
+          if (data.type === 'theme' && typeof data.theme === 'string') setTheme(data.theme);
           if (data.type === 'read' && Array.isArray(data.ids)) {
             const ids = new Set<number>(data.ids);
             setMessages(previous => previous.map(message => ids.has(message.id) ? { ...message, read_at: data.read_at } : message));
@@ -246,12 +248,12 @@ export default function Chat({ me }: { me: { id: string; name: string } }) {
     return message.attachment_name || 'Attachment';
   }
 
-  return <main className="chat-page">
+  return <main className={`chat-page theme-${theme}`}>
     <header className="chat-header">
       <Link href="/" className="chat-back" aria-label="Home"><ArrowLeft size={19}/></Link>
       <div className="chat-avatar">{me.name.startsWith('Queen') ? 'Q' : 'P'}<span>✿</span></div>
       <div className="chat-title"><strong>{me.name.startsWith('Queen') ? 'Peace Adekunle' : 'Queen Moyosore'}</strong><span><i/> Just us, always</span></div>
-      <button className="chat-logout" onClick={logout} title="Log out"><LogOut size={17}/></button>
+      <div className="chat-header-actions"><Link href="/settings" className="chat-action" title="Settings" aria-label="Settings"><Settings size={17}/></Link><button className="chat-logout" onClick={logout} title="Log out"><LogOut size={17}/></button></div>
     </header>
     <div className="chat-wallpaper">
       <div className="message-list" ref={list}>

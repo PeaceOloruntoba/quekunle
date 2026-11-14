@@ -3,8 +3,10 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT UNIQUE NOT NULL,
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
+  profile_image_key TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_key TEXT;
 CREATE TABLE IF NOT EXISTS messages (
   id BIGSERIAL PRIMARY KEY,
   sender_id TEXT NOT NULL REFERENCES users(id),
@@ -26,3 +28,10 @@ CREATE TABLE IF NOT EXISTS reactions (
   PRIMARY KEY (message_id, user_id, emoji)
 );
 CREATE INDEX IF NOT EXISTS reactions_message_id_idx ON reactions(message_id);
+CREATE TABLE IF NOT EXISTS chat_settings (
+  id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  theme TEXT NOT NULL DEFAULT 'garden',
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO chat_settings (id, theme) VALUES (1, 'garden') ON CONFLICT (id) DO NOTHING;
