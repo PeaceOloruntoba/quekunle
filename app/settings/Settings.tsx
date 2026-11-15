@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, Heart, ImagePlus, Save, X } from 'lucide-react';
 type Profile = { id: string; username: string; display_name: string; avatar_url: string | null };
-type Data = { me: string; users: Profile[]; wallpaper: string; wallpaper_image_url: string | null };
+type Data = { me: string; users: Profile[]; theme: string; wallpaper: string; wallpaper_image_url: string | null };
+const themes = [
+  { id: 'garden', name: 'Garden green', detail: 'Our leafy favourite' },
+  { id: 'ocean', name: 'Ocean blue', detail: 'Peaceful blue tones' },
+  { id: 'blossom', name: 'Soft blossom', detail: 'A warm, gentle touch' },
+  { id: 'night', name: 'Quiet night', detail: 'A calm evening look' },
+];
 const wallpapers = [
   { id: 'garden', name: 'Leafy garden', detail: 'A little green and peaceful' },
   { id: 'sky', name: 'Cloud blue', detail: 'Soft sky, slow afternoons' },
@@ -58,6 +64,18 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
       setNotice(`The shared wallpaper is now ${wallpaper === 'custom' ? 'your photo' : wallpapers.find(item => item.id === wallpaper)?.name}.`);
     } catch (reason) { setData(current => current ? { ...current, wallpaper: previous } : current); setError(reason instanceof Error ? reason.message : 'Could not update wallpaper.'); }
   }
+  async function saveTheme(theme: string) {
+    if (!data) return;
+    const previous = data.theme;
+    setData(current => current ? { ...current, theme } : current); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setData(current => current ? { ...current, theme: result.theme } : current);
+      setNotice(`The shared chat colours are now ${themes.find(item => item.id === theme)?.name}.`);
+    } catch (reason) { setData(current => current ? { ...current, theme: previous } : current); setError(reason instanceof Error ? reason.message : 'Could not update chat colours.'); }
+  }
   async function uploadWallpaper() {
     if (!wallpaperFile) return;
     setBusy(true); setError(''); setNotice('');
@@ -82,7 +100,8 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
         <div className="settings-profiles">{[own, friend].filter(Boolean).map(profile => <article className={`settings-profile ${profile!.id === me.id ? 'editable' : ''}`} key={profile!.id}>{profilePhoto(profile, profile!.display_name, profile!.id === me.id && Boolean(photo))}<div className="settings-profile-copy"><strong>{profile!.display_name}</strong><span>{profile!.id === me.id ? 'Your profile' : 'Your favourite person'} · @{profile!.username}</span></div>{profile!.id === me.id && <label className="photo-change" title="Choose a profile photo"><ImagePlus size={17}/><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => setPhoto(event.target.files?.[0] ?? null)}/></label>}</article>)}</div>
         <form className="profile-form" onSubmit={saveProfile}><label htmlFor="display-name">Your name</label><input id="display-name" value={name} maxLength={80} onChange={event => setName(event.target.value)} required/><p className="settings-hint">Profile photo: JPEG, PNG, WebP, or GIF up to 8 MB.</p><button className="button button-green" disabled={busy}><Save size={15}/>{busy ? 'Saving…' : 'Save profile'}</button></form>
       </section>
-      <section className="settings-section wallpaper-settings"><div className="settings-section-heading"><div className="settings-icon"><ImagePlus size={17}/></div><div><h2>Our shared chat wallpaper</h2><p>Pick a background for the conversation. It changes for both of you.</p></div></div><div className="wallpaper-options">{wallpapers.map(item => <button key={item.id} className={`wallpaper-option ${data?.wallpaper === item.id ? 'active' : ''}`} onClick={() => saveWallpaper(item.id)} aria-pressed={data?.wallpaper === item.id}><span className={`wallpaper-preview wallpaper-swatch-${item.id}`}><i/><i/><i/></span><span className="wallpaper-name"><strong>{item.name}</strong><small>{item.detail}</small></span>{data?.wallpaper === item.id && <Check size={16} className="wallpaper-check"/>}</button>)}</div><div className="custom-wallpaper-row"><div><strong>Use one of your photos</strong><span>JPEG, PNG, or WebP · up to 10 MB</span></div><label className="photo-change" title="Choose a chat wallpaper"><ImagePlus size={17}/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setWallpaperFile(event.target.files?.[0] ?? null)}/></label></div>{wallpaperFile && wallpaperPreview && <div className="custom-wallpaper-preview" style={{ backgroundImage: `url("${wallpaperPreview}")` }}><span>Preview</span><button className="button button-green" type="button" onClick={uploadWallpaper} disabled={busy}>{busy ? 'Saving…' : 'Use this wallpaper'}</button><button className="wallpaper-cancel" type="button" aria-label="Cancel wallpaper selection" onClick={() => setWallpaperFile(null)}><X size={16}/></button></div>}</section>
+      <section className="settings-section"><div className="settings-section-heading"><div className="settings-icon"><Heart size={17}/></div><div><h2>Chat colour theme</h2><p>Choose the shared colours for our chat. This is separate from the wallpaper.</p></div></div><div className="theme-options">{themes.map(item => <button type="button" key={item.id} className={`theme-option ${data?.theme === item.id ? 'active' : ''}`} onClick={() => saveTheme(item.id)} aria-pressed={data?.theme === item.id}><span className={`theme-preview preview-${item.id}`}><i/><i/><i/></span><span className="theme-name"><strong>{item.name}</strong><small>{item.detail}</small></span>{data?.theme === item.id && <Check size={16} className="theme-check"/>}</button>)}</div></section>
+      <section className="settings-section wallpaper-settings"><div className="settings-section-heading"><div className="settings-icon"><ImagePlus size={17}/></div><div><h2>Our shared chat wallpaper</h2><p>Pick a background image for the conversation. It stretches to fill the chat area.</p></div></div><div className="wallpaper-options">{wallpapers.map(item => <button type="button" key={item.id} className={`wallpaper-option ${data?.wallpaper === item.id ? 'active' : ''}`} onClick={() => saveWallpaper(item.id)} aria-pressed={data?.wallpaper === item.id}><span className={`wallpaper-preview wallpaper-swatch-${item.id}`}><i/><i/><i/></span><span className="wallpaper-name"><strong>{item.name}</strong><small>{item.detail}</small></span>{data?.wallpaper === item.id && <Check size={16} className="wallpaper-check"/>}</button>)}</div><div className="custom-wallpaper-row"><div><strong>Use one of your photos</strong><span>JPEG, PNG, or WebP · up to 10 MB</span></div><label className="photo-change" title="Choose a chat wallpaper"><ImagePlus size={17}/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => setWallpaperFile(event.target.files?.[0] ?? null)}/></label></div>{wallpaperFile && wallpaperPreview && <div className="custom-wallpaper-preview" style={{ backgroundImage: `url("${wallpaperPreview}")` }}><span>Preview</span><button className="button button-green" type="button" onClick={uploadWallpaper} disabled={busy}>{busy ? 'Saving…' : 'Use this wallpaper'}</button><button className="wallpaper-cancel" type="button" aria-label="Cancel wallpaper selection" onClick={() => setWallpaperFile(null)}><X size={16}/></button></div>}</section>
       {notice && <p className="settings-notice"><Check size={15}/>{notice}</p>}{error && <p className="settings-error"><X size={15}/>{error}</p>}
       <Link href="/chat" className="settings-back-chat">Back to our chat <ArrowLeft size={15}/></Link>
     </div>

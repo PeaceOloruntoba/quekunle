@@ -4,7 +4,7 @@ type RealtimeEvent =
   | { type: 'message'; message: Record<string, unknown> }
   | { type: 'read'; ids: number[]; read_at: string }
   | { type: 'reaction'; message_id: number; user_id: string; emoji: string; active: boolean }
-  | { type: 'wallpaper'; wallpaper: string; wallpaper_image_url?: string | null };
+  | { type: 'wallpaper'; wallpaper: string; wallpaper_image_url?: string | null; theme?: string };
 type Socket = { send: (data: string) => void; readyState: number };
 type State = { sockets: Set<Socket>; publisher?: Redis; subscriber?: Redis; starting?: Promise<void> };
 const shared = globalThis as typeof globalThis & { __quekunleRealtime?: State };
