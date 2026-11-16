@@ -1,0 +1,10 @@
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
+import MemoryWall from '../MemoryWall';
+import type { Metadata } from 'next';
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Our Private Memories — Quekunle', robots: { index: false, follow: false } };
+export default async function MemoriesPage() {
+  if (!await getSession()) redirect('/login');
+  return <MemoryWall mode="private"/>;
+}
