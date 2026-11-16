@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ProfilePhoto from '../ProfilePhoto';
 
 type Reaction = { emoji: string; user_id: string };
 type Message = {
@@ -55,7 +56,7 @@ function VoiceNotePlayer({ src }: { src: string }) {
   </div>;
 }
 
-export default function Chat({ me, initialTheme, initialWallpaper, initialWallpaperUrl }: { me: { id: string; name: string }; initialTheme: string; initialWallpaper: string; initialWallpaperUrl: string | null }) {
+export default function Chat({ me, other, initialTheme, initialWallpaper, initialWallpaperUrl }: { me: { id: string; name: string }; other: { name: string; avatarUrl: string }; initialTheme: string; initialWallpaper: string; initialWallpaperUrl: string | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [wallpaper, setWallpaper] = useState(initialWallpaper);
   const [wallpaperImage, setWallpaperImage] = useState<string | null>(initialWallpaperUrl);
@@ -253,8 +254,8 @@ export default function Chat({ me, initialTheme, initialWallpaper, initialWallpa
   return <main className={`chat-page theme-${theme} wallpaper-${wallpaper}`} style={wallpaper === 'custom' && wallpaperImage ? { ['--chat-wallpaper-image' as string]: `url("${wallpaperImage}")` } as React.CSSProperties : undefined}>
     <header className="chat-header">
       <Link href="/" className="chat-back" aria-label="Home"><ArrowLeft size={19}/></Link>
-      <div className="chat-avatar">{me.name.startsWith('Queen') ? 'Q' : 'P'}<span>✿</span></div>
-      <div className="chat-title"><strong>{me.name.startsWith('Queen') ? 'Peace Adekunle' : 'Queen Moyosore'}</strong><span><i/> Just us, always</span></div>
+      {other.avatarUrl && <ProfilePhoto src={other.avatarUrl} name={other.name} className="chat-avatar" badge="✿" imageClassName="chat-avatar-image"/>}
+      <div className="chat-title"><strong>{other.name}</strong><span><i/> Just us, always</span></div>
       <div className="chat-header-actions"><Link href="/settings" className="chat-action" title="Settings" aria-label="Settings"><Settings size={17}/></Link><button className="chat-logout" onClick={logout} title="Log out"><LogOut size={17}/></button></div>
     </header>
     <div className="chat-wallpaper">
