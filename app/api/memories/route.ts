@@ -4,6 +4,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSession } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { bucketName, getStorage } from '@/lib/storage';
+import { dateOnly, isDateOnly } from '@/lib/date-only';
 
 export const dynamic = 'force-dynamic';
 const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     const id = Number(row.id);
     let memory = grouped.get(id);
     if (!memory) {
-      memory = { id, title: String(row.title), location: String(row.location ?? ''), happened_on: String(row.happened_on).slice(0, 10), is_public: Boolean(row.is_public), created_by: String(row.created_by), creator_name: String(row.creator_name), contributions: [], media: [] };
+      memory = { id, title: String(row.title), location: String(row.location ?? ''), happened_on: dateOnly(row.happened_on), is_public: Boolean(row.is_public), created_by: String(row.created_by), creator_name: String(row.creator_name), contributions: [], media: [] };
       grouped.set(id, memory);
     }
     if (row.contributor_id && !memory.contributions.some(item => item.user_id === String(row.contributor_id))) memory.contributions.push({ user_id: String(row.contributor_id), name: String(row.contributor_name), body: String(row.contribution ?? '') });
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   const story = typeof data.story === 'string' ? data.story.trim() : '';
   const date = String(data.happened_on ?? '');
   const items = Array.isArray(data.media) ? data.media : [];
-  if (!title || title.length > 120 || location.length > 180 || story.length > 1200 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || items.length > 8) return NextResponse.json({ error: 'Check the memory details and attach no more than 8 photos or videos.' }, { status: 400 });
+  if (!title || title.length > 120 || location.length > 180 || story.length > 1200 || !isDateOnly(date) || items.length > 8) return NextResponse.json({ error: 'Check the memory details and attach no more than 8 photos or videos.' }, { status: 400 });
   for (const item of items) if (typeof item.key !== 'string' || !item.key.startsWith(`memories/${user.id}/`) || typeof item.name !== 'string' || !allowedMedia.has(item.type)) return NextResponse.json({ error: 'One of the selected files is not supported.' }, { status: 400 });
   const sql = database();
   const rows = await sql`INSERT INTO memories (title, location, happened_on, is_public, created_by) VALUES (${title}, ${location}, ${date}, ${Boolean(data.is_public)}, ${user.id}) RETURNING id`;

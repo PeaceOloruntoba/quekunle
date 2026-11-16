@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { database } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { dateOnly } from '@/lib/date-only';
+import { dateOnly, isDateOnly } from '@/lib/date-only';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSession();
@@ -11,7 +11,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const date = String(data.happened_on ?? '');
   const title = typeof data.title === 'string' ? data.title.trim() : '';
   const story = typeof data.story === 'string' ? data.story.trim() : '';
-  if (!Number.isSafeInteger(id) || id < 1 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !title || title.length > 120 || story.length > 800) return NextResponse.json({ error: 'Check the date, title, and short note.' }, { status: 400 });
+  if (!Number.isSafeInteger(id) || id < 1 || !isDateOnly(date) || !title || title.length > 120 || story.length > 800) return NextResponse.json({ error: 'Check the date, title, and short note.' }, { status: 400 });
   const sql = database();
   const rows = await sql`UPDATE timeline_events SET happened_on = ${date}, title = ${title}, story = ${story} WHERE id = ${id} RETURNING id, happened_on, title, story`;
   return rows.length ? NextResponse.json({ event: { ...rows[0], happened_on: dateOnly(rows[0].happened_on) } }) : NextResponse.json({ error: 'That story moment no longer exists.' }, { status: 404 });
