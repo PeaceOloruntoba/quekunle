@@ -20,6 +20,14 @@ async function ensureSchema() {
   await sql`ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper TEXT NOT NULL DEFAULT 'garden'`;
   await sql`ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS wallpaper_image_key TEXT`;
   await sql`INSERT INTO chat_settings (id, theme, wallpaper) VALUES (1, 'garden', 'garden') ON CONFLICT (id) DO NOTHING`;
+  await sql`CREATE TABLE IF NOT EXISTS timeline_events (id BIGSERIAL PRIMARY KEY, happened_on DATE NOT NULL, title TEXT NOT NULL, story TEXT NOT NULL DEFAULT '', created_by TEXT REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
+  await sql`CREATE INDEX IF NOT EXISTS timeline_events_happened_on_idx ON timeline_events(happened_on, id)`;
+  await sql`CREATE TABLE IF NOT EXISTS memories (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, location TEXT NOT NULL DEFAULT '', happened_on DATE NOT NULL, is_public BOOLEAN NOT NULL DEFAULT false, created_by TEXT NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
+  await sql`ALTER TABLE memories ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false`;
+  await sql`CREATE INDEX IF NOT EXISTS memories_happened_on_idx ON memories(happened_on DESC, id DESC)`;
+  await sql`CREATE TABLE IF NOT EXISTS memory_contributions (memory_id BIGINT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, body TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (memory_id, user_id))`;
+  await sql`CREATE TABLE IF NOT EXISTS memory_media (id BIGSERIAL PRIMARY KEY, memory_id BIGINT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, object_key TEXT NOT NULL, file_name TEXT NOT NULL, content_type TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
+  await sql`CREATE INDEX IF NOT EXISTS memory_media_memory_id_idx ON memory_media(memory_id, id)`;
   return sql;
 }
 async function seed() {
