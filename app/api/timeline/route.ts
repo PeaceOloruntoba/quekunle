@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { database } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { dateOnly } from '@/lib/date-only';
 
 export const dynamic = 'force-dynamic';
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET() {
   const sql = database();
-  const events = await sql`SELECT id, happened_on, title, story FROM timeline_events ORDER BY happened_on, id`;
+  const rows = await sql`SELECT id, happened_on, title, story FROM timeline_events ORDER BY happened_on, id`;
+  const events = rows.map(row => ({ ...row, happened_on: dateOnly(row.happened_on) }));
   return NextResponse.json({ events }, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } });
 }
 
@@ -21,5 +23,5 @@ export async function POST(request: Request) {
   if (!datePattern.test(date) || !title || title.length > 120 || story.length > 800) return NextResponse.json({ error: 'Add a valid date, a title (up to 120 characters), and a short note (up to 800 characters).' }, { status: 400 });
   const sql = database();
   const rows = await sql`INSERT INTO timeline_events (happened_on, title, story, created_by) VALUES (${date}, ${title}, ${story}, ${user.id}) RETURNING id, happened_on, title, story`;
-  return NextResponse.json({ event: rows[0] }, { status: 201 });
+  return NextResponse.json({ event: { ...rows[0], happened_on: dateOnly(rows[0].happened_on) } }, { status: 201 });
 }
