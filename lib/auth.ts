@@ -10,7 +10,7 @@ function key() {
 }
 export async function createSession(user: { id: string; username: string; display_name: string }) {
   const token = await new SignJWT(user).setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime(`${SESSION_SECONDS}s`).sign(key());
-  (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: SESSION_SECONDS });
+  (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: SESSION_SECONDS, expires: new Date(Date.now() + SESSION_SECONDS * 1000) });
 }
 export async function getSession() {
   const token = (await cookies()).get(COOKIE)?.value;
