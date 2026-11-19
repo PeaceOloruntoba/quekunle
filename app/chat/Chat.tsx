@@ -251,14 +251,15 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
     }
     let stream: MediaStream | null = null;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = recordingStream;
       const Recorder = window.MediaRecorder;
       const preferred = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => typeof Recorder.isTypeSupported === 'function' && Recorder.isTypeSupported(type));
-      const mediaRecorder = preferred ? new Recorder(stream, { mimeType: preferred }) : new Recorder(stream);
+      const mediaRecorder = preferred ? new Recorder(recordingStream, { mimeType: preferred }) : new Recorder(recordingStream);
       recorder.current = mediaRecorder; chunks.current = []; discardRecording.current = false;
       mediaRecorder.ondataavailable = event => { if (event.data.size) chunks.current.push(event.data); };
       mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
+        recordingStream.getTracks().forEach(track => track.stop());
         if (!discardRecording.current) {
           const type = mediaRecorder.mimeType || 'audio/webm';
           const extension = type.split(';')[0].split('/')[1]?.replace('3gpp', '3gp') || 'webm';
