@@ -2,6 +2,7 @@ import { experimental_upgradeWebSocket } from '@vercel/functions';
 import { getSession } from '@/lib/auth';
 import { addSocket, removeSocket } from '@/lib/realtime';
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export async function GET() {
   const session = await getSession();
   if (!session) return new Response('Unauthorized', { status: 401 });

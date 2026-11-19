@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X, Settings } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, Download, FileText, LogOut, Mic, Paperclip, Pause, Play, Reply, Send, Smile, SmilePlus, Square, X, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProfilePhoto from '../ProfilePhoto';
@@ -61,11 +61,15 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
   const [wallpaper, setWallpaper] = useState(initialWallpaper);
   const [wallpaperImage, setWallpaperImage] = useState<string | null>(initialWallpaperUrl);
   const [theme, setTheme] = useState(initialTheme);
+  const [otherName, setOtherName] = useState(other.name);
+  const [otherAvatarUrl, setOtherAvatarUrl] = useState(other.avatarUrl);
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [reactingTo, setReactingTo] = useState<number | null>(null);
+  const [activeMessageActions, setActiveMessageActions] = useState<number | null>(null);
+  const [expandedMedia, setExpandedMedia] = useState<{ url: string; type: string; name: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -78,7 +82,32 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
   const recordingStartedAt = useRef(0);
   const discardRecording = useRef(false);
   const socket = useRef<WebSocket | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const suppressLongPressClick = useRef(false);
   const router = useRouter();
+
+  function cancelMessageLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    longPressOrigin.current = null;
+  }
+  function startMessageLongPress(id: number, event: React.TouchEvent<HTMLElement>) {
+    cancelMessageLongPress();
+    const touch = event.touches[0];
+    longPressOrigin.current = { x: touch.clientX, y: touch.clientY };
+    suppressLongPressClick.current = false;
+    longPressTimer.current = setTimeout(() => {
+      suppressLongPressClick.current = true;
+      setTimeout(() => { suppressLongPressClick.current = false; }, 800);
+      setActiveMessageActions(id);
+    }, 2000);
+  }
+  function moveMessageLongPress(event: React.TouchEvent<HTMLElement>) {
+    const touch = event.touches[0];
+    const origin = longPressOrigin.current;
+    if (touch && origin && (Math.abs(touch.clientX - origin.x) > 12 || Math.abs(touch.clientY - origin.y) > 12)) cancelMessageLongPress();
+  }
 
   const mergeMessage = useCallback((incoming: Message) => {
     setMessages(previous => {
@@ -103,16 +132,25 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
     let stopped = false;
     let delay = 1000;
     let retry: ReturnType<typeof setTimeout>;
+    const queueReconnect = () => {
+      if (stopped) return;
+      retry = setTimeout(connect, delay);
+      delay = Math.min(delay * 2, 20000);
+    };
     const connect = () => {
       if (stopped) return;
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${location.host}/api/ws`);
+      if (typeof WebSocket === 'undefined') { queueReconnect(); return; }
+      let ws: WebSocket;
+      try { ws = new WebSocket(`${protocol}//${location.host}/api/ws`); }
+      catch { queueReconnect(); return; }
       socket.current = ws;
       ws.onopen = () => { delay = 1000; void load(); };
       ws.onmessage = event => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'message' && data.message) mergeMessage(data.message as Message);
+          if (data.type === 'profile' && data.user_id === other.id) { setOtherName(data.display_name); setOtherAvatarUrl(data.avatar_url ?? ''); }
           if (data.type === 'wallpaper' && typeof data.wallpaper === 'string') { setWallpaper(data.wallpaper); setWallpaperImage(data.wallpaper_image_url ?? null); if (data.theme) setTheme(data.theme); }
           if (data.type === 'read' && Array.isArray(data.ids)) {
             const ids = new Set<number>(data.ids);
@@ -131,15 +169,17 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
       };
       ws.onclose = () => {
         if (stopped) return;
-        retry = setTimeout(connect, delay);
-        delay = Math.min(delay * 2, 20000);
+        queueReconnect();
       };
       ws.onerror = () => ws.close();
     };
+    const fallback = window.setInterval(() => { if (socket.current?.readyState !== 1) void load(); }, 30000);
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     void load();
     connect();
-    return () => { stopped = true; clearTimeout(retry); socket.current?.close(); socket.current = null; };
-  }, [load, mergeMessage]);
+    return () => { stopped = true; clearTimeout(retry); clearInterval(fallback); document.removeEventListener('visibilitychange', onVisibilityChange); socket.current?.close(); socket.current = null; };
+  }, [load, mergeMessage, other.id]);
 
   useEffect(() => {
     if (!recording) return;
@@ -183,6 +223,7 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
 
   async function react(messageId: number, emoji: string) {
     setReactingTo(null);
+    setActiveMessageActions(null);
     try {
       const response = await fetch(`/api/messages/${messageId}/reactions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) });
       const data = await response.json();
@@ -200,10 +241,16 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
 
   async function record() {
     if (recording) { recorder.current?.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder === 'undefined') {
+      setError('Voice recording is not available in this browser. Please update Safari or use a supported browser.');
+      return;
+    }
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferred = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(type => typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(type));
-      const mediaRecorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const Recorder = window.MediaRecorder;
+      const preferred = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => typeof Recorder.isTypeSupported === 'function' && Recorder.isTypeSupported(type));
+      const mediaRecorder = preferred ? new Recorder(stream, { mimeType: preferred }) : new Recorder(stream);
       recorder.current = mediaRecorder; chunks.current = []; discardRecording.current = false;
       mediaRecorder.ondataavailable = event => { if (event.data.size) chunks.current.push(event.data); };
       mediaRecorder.onstop = () => {
@@ -218,7 +265,10 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
         discardRecording.current = false; setRecording(false); setRecordingSeconds(0);
       };
       mediaRecorder.start(); recordingStartedAt.current = Date.now(); setRecordingSeconds(0); setFile(null); setError(''); setRecording(true);
-    } catch { setError('Allow microphone access to record a voice note.'); }
+    } catch (reason) {
+      stream?.getTracks().forEach(track => track.stop());
+      setError(reason instanceof Error && reason.name === 'NotAllowedError' ? 'Allow microphone access in Safari Settings to record a voice note.' : 'Could not start voice recording. Check microphone access and try again.');
+    }
   }
 
   function cancelRecording() {
@@ -250,12 +300,18 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
     if (message.attachment_type?.startsWith('audio/')) return 'Voice note';
     return message.attachment_name || 'Attachment';
   }
+  useEffect(() => {
+    if (!expandedMedia) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExpandedMedia(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [expandedMedia]);
 
   return <main className={`chat-page theme-${theme} wallpaper-${wallpaper}`} style={wallpaper === 'custom' && wallpaperImage ? { ['--chat-wallpaper-image' as string]: `url("${wallpaperImage}")` } as React.CSSProperties : undefined}>
     <header className="chat-header">
       <Link href="/" className="chat-back" aria-label="Home"><ArrowLeft size={19}/></Link>
-      {other.avatarUrl && <ProfilePhoto src={other.avatarUrl} name={other.name} className="chat-avatar" badge="✿" imageClassName="chat-avatar-image"/>}
-      <div className="chat-title"><strong>{other.name}</strong><span><i/> Just us, always</span></div>
+      {otherAvatarUrl && <ProfilePhoto src={otherAvatarUrl} name={otherName} className="chat-avatar" badge="✿" imageClassName="chat-avatar-image"/>}
+      <div className="chat-title"><strong>{otherName}</strong><span><i/> Just us, always</span></div>
       <div className="chat-header-actions"><Link href="/settings" className="chat-action" title="Settings" aria-label="Settings"><Settings size={17}/></Link><button className="chat-logout" onClick={logout} title="Log out"><LogOut size={17}/></button></div>
     </header>
     <div className="chat-wallpaper">
@@ -264,12 +320,12 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
           const mine = message.sender_id === me.id;
           const dayChanged = index === 0 || localDayKey(messages[index - 1].created_at) !== localDayKey(message.created_at);
           const groups = Array.from(new Set(message.reactions.map(reaction => reaction.emoji)));
-          return <Fragment key={message.id}>{dayChanged && <div className="day-separator"><span>{dateGroup(message.created_at)}</span></div>}<article className={`message ${mine ? 'mine' : 'theirs'}`}>
+          return <Fragment key={message.id}>{dayChanged && <div className="day-separator"><span>{dateGroup(message.created_at)}</span></div>}<article className={`message ${mine ? 'mine' : 'theirs'} ${activeMessageActions === message.id ? 'actions-open' : ''}`} onTouchStart={event => startMessageLongPress(message.id, event)} onTouchEnd={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress} onTouchMove={moveMessageLongPress} onContextMenu={event => { event.preventDefault(); if (!('ontouchstart' in window)) setActiveMessageActions(message.id); }} onClick={event => { if (suppressLongPressClick.current) { event.preventDefault(); suppressLongPressClick.current = false; return; } if (!(event.target as HTMLElement).closest('.message-tools,.message-reaction-picker')) setActiveMessageActions(null); }}>
             <div className="message-bubble">
               {message.reply_to_id && <div className="reply-preview"><strong>{message.reply_sender_name || 'A message'}</strong><span>{message.reply_body || 'Attachment'}</span></div>}
               {message.attachment_url && <div className="attachment">
-                {message.attachment_type?.startsWith('image/') ? <a href={message.attachment_url} target="_blank" rel="noreferrer"><img src={message.attachment_url} alt={message.attachment_name || 'Shared image'}/></a>
-                  : message.attachment_type?.startsWith('video/') ? <video src={message.attachment_url} controls/>
+                {message.attachment_type?.startsWith('image/') ? <button type="button" className="attachment-image-trigger" onClick={() => setExpandedMedia({ url: message.attachment_url!, type: 'image', name: message.attachment_name || 'Shared image' })} aria-label="Open image"><img src={message.attachment_url} alt={message.attachment_name || 'Shared image'} loading="lazy"/></button>
+                  : message.attachment_type?.startsWith('video/') ? <button type="button" className="attachment-video-trigger" onClick={() => setExpandedMedia({ url: message.attachment_url!, type: 'video', name: message.attachment_name || 'Shared video' })} aria-label="Open video"><video src={message.attachment_url} muted playsInline preload="metadata"/><span><Play size={22} fill="currentColor"/></span></button>
                     : message.attachment_type?.startsWith('audio/') ? <VoiceNotePlayer src={message.attachment_url}/>
                       : <a className="file-link" href={message.attachment_url} target="_blank" rel="noreferrer"><FileText size={19}/>{message.attachment_name}</a>}
               </div>}
@@ -281,9 +337,9 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
               })}</div>}
               <div className="message-meta"><time>{time(message.created_at)}</time>{mine && (message.read_at ? <CheckCheck size={15} className="read-check"/> : <Check size={15}/>)}</div>
             </div>
-            <div className="message-tools">
-              <button onClick={() => { setReplyingTo(message); setReactingTo(null); }} title="Reply to this message" aria-label="Reply"><Reply size={15}/></button>
-              <button onClick={() => setReactingTo(reactingTo === message.id ? null : message.id)} title="React to this message" aria-label="React"><SmilePlus size={15}/></button>
+            <div className="message-tools" role="group" aria-label="Message actions">
+              <button onClick={() => { setReplyingTo(message); setReactingTo(null); setActiveMessageActions(null); }} title="Reply to this message" aria-label="Reply"><Reply size={15}/></button>
+              <button onClick={() => { setReactingTo(reactingTo === message.id ? null : message.id); setActiveMessageActions(null); }} title="React to this message" aria-label="React"><SmilePlus size={15}/></button>
             </div>
             {reactingTo === message.id && <div className="message-reaction-picker">{emojis.map(emoji => <button key={emoji} onClick={() => react(message.id, emoji)} aria-label={`React ${emoji}`}>{emoji}</button>)}</div>}
           </article></Fragment>;
@@ -305,7 +361,8 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
         <button type="button" className={`tool-button mic-button ${recording ? 'recording' : ''}`} onClick={record} aria-label={recording ? 'Stop recording' : 'Record voice note'}>{recording ? <Square size={18} fill="currentColor"/> : <Mic size={21}/>}</button>
         <button className="send-button" disabled={sending || recording || (!body.trim() && !file)} aria-label="Send message">{sending ? <span className="sending-dot"/> : <Send size={18}/>}</button>
       </form>
-      <div className="composer-note">Messages between just the two of you <span>♥</span></div>
+      <div className="composer-note">Hold a message for 2 seconds to reply or react <span>♥</span></div>
     </div>
+    {expandedMedia && <div className="media-lightbox" role="dialog" aria-modal="true" aria-label={expandedMedia.name} onClick={() => setExpandedMedia(null)}><button type="button" className="media-lightbox-close" aria-label="Close media" onClick={() => setExpandedMedia(null)}><X size={21}/></button><div className="media-lightbox-content" onClick={event => event.stopPropagation()}>{expandedMedia.type === 'image' ? <img src={expandedMedia.url} alt={expandedMedia.name}/> : <video src={expandedMedia.url} controls playsInline/>}<div className="media-lightbox-footer"><strong title={expandedMedia.name}>{expandedMedia.name}</strong><a href={`${expandedMedia.url}${expandedMedia.url.includes('?') ? '&' : '?'}download=1`} download={expandedMedia.name} aria-label="Download attachment"><Download size={18}/><span>Download</span></a></div></div></div>}
   </main>;
 }

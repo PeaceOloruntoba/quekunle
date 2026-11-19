@@ -6,7 +6,8 @@ import { publishRealtime } from '@/lib/realtime';
 export const dynamic = 'force-dynamic';
 function withUrl(row: Record<string, unknown>) {
   const { id, attachment_key, reply_to_id, ...rest } = row;
-  const attachment_url = typeof attachment_key === 'string' ? `/api/media/${attachment_key.split('/').map(encodeURIComponent).join('/')}` : null;
+  const path = typeof attachment_key === 'string' ? `/api/media/${attachment_key.split('/').map(encodeURIComponent).join('/')}` : null;
+  const attachment_url = path ? `${path}${typeof rest.attachment_name === 'string' ? `?filename=${encodeURIComponent(rest.attachment_name)}` : ''}` : null;
   return { ...rest, id: Number(id), reply_to_id: reply_to_id == null ? null : Number(reply_to_id), attachment_url };
 }
 export async function GET() {
@@ -32,13 +33,15 @@ export async function POST(request: Request) {
   const replyToId = data.reply_to_id == null ? null : Number(data.reply_to_id);
   if (replyToId !== null && (!Number.isSafeInteger(replyToId) || replyToId < 1)) return NextResponse.json({ error: 'That reply is no longer available.' }, { status: 400 });
   const sql = database();
+  const senderRows = await sql`SELECT display_name FROM users WHERE id = ${me.id} LIMIT 1`;
+  const senderName = String(senderRows[0]?.display_name ?? me.display_name);
   let reply: { body: string; sender_name: string } | undefined;
   if (replyToId !== null) {
     const replied = await sql`SELECT m.body, u.display_name AS sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ${replyToId} LIMIT 1`;
     reply = replied[0] as typeof reply;
     if (!reply) return NextResponse.json({ error: 'That reply is no longer available.' }, { status: 404 });
   }
-  const rows = await sql`INSERT INTO messages (sender_id, body, attachment_key, attachment_name, attachment_type, reply_to_id) VALUES (${me.id}, ${body}, ${attachment?.key ?? null}, ${attachment?.name ?? null}, ${attachment?.type ?? null}, ${replyToId}) RETURNING id, sender_id, ${me.display_name}::text AS sender_name, body, attachment_key, attachment_name, attachment_type, reply_to_id, created_at, read_at`;
+  const rows = await sql`INSERT INTO messages (sender_id, body, attachment_key, attachment_name, attachment_type, reply_to_id) VALUES (${me.id}, ${body}, ${attachment?.key ?? null}, ${attachment?.name ?? null}, ${attachment?.type ?? null}, ${replyToId}) RETURNING id, sender_id, ${senderName}::text AS sender_name, body, attachment_key, attachment_name, attachment_type, reply_to_id, created_at, read_at`;
   const message = { ...withUrl(rows[0]), reply_body: reply?.body ?? null, reply_sender_name: reply?.sender_name ?? null, reactions: [] };
   try { await publishRealtime({ type: 'message', message }); }
   catch (error) { console.error('[chat] message saved but realtime publish failed', error); }

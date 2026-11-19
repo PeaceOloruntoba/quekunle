@@ -10,8 +10,9 @@ export default async function ChatPage() {
   const session = await getSession();
   if (!session) redirect('/login');
   const sql = database();
-  const people = await sql`SELECT id, display_name FROM users WHERE id <> ${session.id} LIMIT 1`;
-  const other = people[0];
+  const people = await sql`SELECT id, display_name FROM users ORDER BY CASE id WHEN 'queen-moyosore' THEN 1 ELSE 2 END`;
+  const self = people.find(person => person.id === session.id);
+  const other = people.find(person => person.id !== session.id);
   let rows: Record<string, unknown>[];
   try {
     rows = await sql`SELECT theme, wallpaper, wallpaper_image_key FROM chat_settings WHERE id = 1 LIMIT 1` as Record<string, unknown>[];
@@ -30,5 +31,5 @@ export default async function ChatPage() {
     try { wallpaperUrl = await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: String(rows[0].wallpaper_image_key) }), { expiresIn: 15 * 60 }); }
     catch (error) { console.error('[chat] unable to sign shared wallpaper URL', error); }
   }
-  return <Chat me={{ id: session.id, name: session.display_name }} other={{ name: String(other?.display_name ?? (session.id === 'queen-moyosore' ? 'Peace Adekunle' : 'Queen Moyosore')), avatarUrl: other ? `/api/profiles/${other.id}/avatar` : '' }} initialTheme={theme} initialWallpaper={wallpaper} initialWallpaperUrl={wallpaperUrl} />;
+  return <Chat me={{ id: session.id, name: String(self?.display_name ?? session.display_name) }} other={{ name: String(other?.display_name ?? (session.id === 'queen-moyosore' ? 'Peace Adekunle' : 'Queen Moyosore')), avatarUrl: other ? `/api/profiles/${other.id}/avatar` : '' }} initialTheme={theme} initialWallpaper={wallpaper} initialWallpaperUrl={wallpaperUrl} />;
 }

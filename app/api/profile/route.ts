@@ -25,16 +25,23 @@ export async function PUT(request: Request) {
   const sql = database();
   const result: { profile?: { id: string; username: string; display_name: string; avatar_url: string | null }; theme?: string; wallpaper?: string; wallpaper_image_url?: string | null } = {};
   if (data.display_name !== undefined || data.profile_image_key !== undefined) {
+    const targetId = typeof data.profile_user_id === 'string' ? data.profile_user_id : me.id;
+    const friendId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
+    if (targetId !== me.id && targetId !== friendId) return NextResponse.json({ error: 'You can only edit the two profiles in this chat.' }, { status: 403 });
+    const existing = targetId === me.id ? [me] : await sql`SELECT id FROM users WHERE id = ${targetId} LIMIT 1`;
+    if (!existing.length) return NextResponse.json({ error: 'That profile could not be found.' }, { status: 404 });
     const name = typeof data.display_name === 'string' ? data.display_name.trim() : me.display_name;
     const key = data.profile_image_key;
     if (name.length < 1 || name.length > 80) return NextResponse.json({ error: 'Name must be between 1 and 80 characters.' }, { status: 400 });
+    if (key !== undefined && targetId !== me.id) return NextResponse.json({ error: 'You can only change your own profile photo.' }, { status: 403 });
     if (key !== undefined && key !== null && (typeof key !== 'string' || !key.startsWith(`profiles/${me.id}/`))) return NextResponse.json({ error: 'Invalid profile photo.' }, { status: 400 });
     const rows = key === undefined
-      ? await sql`UPDATE users SET display_name = ${name} WHERE id = ${me.id} RETURNING id, username, display_name, profile_image_key`
-      : await sql`UPDATE users SET display_name = ${name}, profile_image_key = ${key} WHERE id = ${me.id} RETURNING id, username, display_name, profile_image_key`;
+      ? await sql`UPDATE users SET display_name = ${name} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`
+      : await sql`UPDATE users SET display_name = ${name}, profile_image_key = ${key} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`;
     const user = rows[0];
-    await createSession({ id: user.id, username: user.username, display_name: user.display_name });
+    if (targetId === me.id) await createSession({ id: user.id, username: user.username, display_name: user.display_name });
     result.profile = { id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.profile_image_key ? `/api/profiles/${user.id}/avatar?v=${Date.now()}` : null };
+    try { await publishRealtime({ type: 'profile', user_id: user.id, display_name: user.display_name, avatar_url: result.profile.avatar_url }); } catch (error) { console.error('[chat] profile broadcast failed', error); }
   }
   if (data.theme !== undefined) {
     const theme = data.theme;

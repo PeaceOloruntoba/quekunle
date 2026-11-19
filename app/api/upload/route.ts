@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getStorage, bucketName } from '@/lib/storage';
 import { getSession } from '@/lib/auth';
 export const runtime = 'nodejs';
-const allowed = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|webm|quicktime)|audio\/(webm|mpeg|mp4|ogg|aac|wav|x-m4a|3gpp|3gpp2)|application\/(pdf|msword|vnd.openxmlformats-officedocument\..+)|text\/(plain|csv))$/;
+const allowed = /^(image\/(jpeg|png|gif|webp|heic|heif|avif)|video\/(mp4|webm|quicktime)|audio\/(webm|mpeg|mp4|ogg|aac|wav|x-m4a|3gpp|3gpp2)|application\/(pdf|msword|vnd.openxmlformats-officedocument\..+)|text\/(plain|csv))$/;
 export async function POST(request: Request) {
   if (!(await getSession())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const data = await request.json();

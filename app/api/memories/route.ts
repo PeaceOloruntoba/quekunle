@@ -7,7 +7,7 @@ import { bucketName, getStorage } from '@/lib/storage';
 import { dateOnly, isDateOnly } from '@/lib/date-only';
 
 export const dynamic = 'force-dynamic';
-const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
+const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'video/mp4', 'video/webm', 'video/quicktime']);
 
 export async function GET(request: Request) {
   const user = await getSession();
