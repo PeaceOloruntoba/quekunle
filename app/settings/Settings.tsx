@@ -32,6 +32,7 @@ function decodeVapidKey(value: string) {
   const raw = atob(padded);
   return Uint8Array.from(raw, character => character.charCodeAt(0));
 }
+function isIOSDevice() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
 export default function Settings({ me }: { me: { id: string; name: string } }) {
   const [data, setData] = useState<Data | null>(null);
   const [name, setName] = useState(me.name);
@@ -59,7 +60,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
     capturePrompt();
     window.addEventListener('quekunle-install-available', capturePrompt);
     window.addEventListener('quekunle-app-installed', capturePrompt);
-    setIosInstall(/iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as any).MSStream);
+    setIosInstall(isIOSDevice());
     void (async () => {
       try {
         let endpoint = '';
@@ -82,10 +83,10 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
   async function enablePush() {
     setPushBusy(true); setPushError(''); setPushNotice('');
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('This browser does not support web push notifications. Try installing Quekunle in a current browser.');
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as any).MSStream;
+      const isIOS = isIOSDevice() && !(window as any).MSStream;
       const isInstalled = window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone);
       if (isIOS && !isInstalled) throw new Error('On iPhone or iPad, install Quekunle from Safari’s Share menu first, then enable push from the home screen app.');
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('This browser does not support web push notifications. Try installing Quekunle in a current browser.');
       if (!pushPublicKey) throw new Error('Web push is not configured yet. Add the VAPID keys on the server and redeploy.');
       const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (permission !== 'granted') throw new Error(permission === 'denied' ? 'Notifications are blocked in browser settings. Allow them there, then try again.' : 'Notification permission was not granted.');

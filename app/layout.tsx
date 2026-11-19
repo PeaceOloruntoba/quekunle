@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'Quekunle', statusBarStyle: 'default' },
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  icons: { icon: '/icon.svg', apple: '/apple-touch-icon.png' },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en"><body><PwaBootstrap />{children}</body></html>;

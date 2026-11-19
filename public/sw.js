@@ -1,5 +1,5 @@
 const CACHE_NAME = 'quekunle-static-v1';
-self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.add('/offline.html')).then(() => self.skipWaiting())); });
+self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(['/offline.html', '/icon.svg'])).then(() => self.skipWaiting())); });
 self.addEventListener('activate', event => { event.waitUntil(self.clients.claim()); });
 self.addEventListener('fetch', event => {
   if (event.request.mode !== 'navigate' || new URL(event.request.url).origin !== self.location.origin) return;
