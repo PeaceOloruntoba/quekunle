@@ -31,5 +31,5 @@ export default async function ChatPage() {
     try { wallpaperUrl = await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: String(rows[0].wallpaper_image_key) }), { expiresIn: 15 * 60 }); }
     catch (error) { console.error('[chat] unable to sign shared wallpaper URL', error); }
   }
-  return <Chat me={{ id: session.id, name: String(self?.display_name ?? session.display_name) }} other={{ name: String(other?.display_name ?? (session.id === 'queen-moyosore' ? 'Peace Adekunle' : 'Queen Moyosore')), avatarUrl: other ? `/api/profiles/${other.id}/avatar` : '' }} initialTheme={theme} initialWallpaper={wallpaper} initialWallpaperUrl={wallpaperUrl} />;
+  return <Chat me={{ id: session.id, name: String(self?.display_name ?? session.display_name) }} other={{ id: String(other?.id ?? ''), name: String(other?.display_name ?? (session.id === 'queen-moyosore' ? 'Peace Adekunle' : 'Queen Moyosore')), avatarUrl: other ? `/api/profiles/${other.id}/avatar` : '' }} initialTheme={theme} initialWallpaper={wallpaper} initialWallpaperUrl={wallpaperUrl} />;
 }

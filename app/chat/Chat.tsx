@@ -56,7 +56,7 @@ function VoiceNotePlayer({ src }: { src: string }) {
   </div>;
 }
 
-export default function Chat({ me, other, initialTheme, initialWallpaper, initialWallpaperUrl }: { me: { id: string; name: string }; other: { name: string; avatarUrl: string }; initialTheme: string; initialWallpaper: string; initialWallpaperUrl: string | null }) {
+export default function Chat({ me, other, initialTheme, initialWallpaper, initialWallpaperUrl }: { me: { id: string; name: string }; other: { id: string; name: string; avatarUrl: string }; initialTheme: string; initialWallpaper: string; initialWallpaperUrl: string | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [wallpaper, setWallpaper] = useState(initialWallpaper);
   const [wallpaperImage, setWallpaperImage] = useState<string | null>(initialWallpaperUrl);
