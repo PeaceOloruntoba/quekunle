@@ -5,6 +5,7 @@ import { publishRealtime } from '@/lib/realtime';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { bucketName, getStorage } from '@/lib/storage';
+import { schedulePush } from '@/lib/push';
 export const dynamic = 'force-dynamic';
 const wallpapers = new Set(['garden', 'sky', 'petals', 'night', 'custom']);
 export async function GET() {
@@ -42,6 +43,10 @@ export async function PUT(request: Request) {
     if (targetId === me.id) await createSession({ id: user.id, username: user.username, display_name: user.display_name });
     result.profile = { id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.profile_image_key ? `/api/profiles/${user.id}/avatar?v=${Date.now()}` : null };
     try { await publishRealtime({ type: 'profile', user_id: user.id, display_name: user.display_name, avatar_url: result.profile.avatar_url }); } catch (error) { console.error('[chat] profile broadcast failed', error); }
+    const recipientId = targetId === me.id ? friendId : targetId;
+    const actorName = targetId === me.id ? user.display_name : me.display_name;
+    const changed = key !== undefined ? 'updated a profile photo' : `changed a display name to ${user.display_name}`;
+    await schedulePush(recipientId, 'profile', me.id, { title: 'Profile updated', body: `${actorName} ${changed}.`, url: '/settings', tag: `quekunle-profile-${user.id}` });
   }
   if (data.theme !== undefined) {
     const theme = data.theme;
@@ -51,6 +56,8 @@ export async function PUT(request: Request) {
     const current = await sql`SELECT wallpaper, wallpaper_image_key FROM chat_settings WHERE id = 1 LIMIT 1`;
     const imageUrl = current[0]?.wallpaper_image_key ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: String(current[0].wallpaper_image_key) }), { expiresIn: 15 * 60 }) : null;
     try { await publishRealtime({ type: 'wallpaper', theme, wallpaper: String(current[0]?.wallpaper ?? 'garden'), wallpaper_image_url: imageUrl }); } catch (error) { console.error('[chat] theme broadcast failed', error); }
+    const recipientId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
+    await schedulePush(recipientId, 'wallpaper', me.id, { title: 'Chat colours updated', body: 'Your shared chat look has changed.', url: '/chat', tag: 'quekunle-chat-appearance' });
   }
   if (data.wallpaper !== undefined || data.wallpaper_image_key !== undefined) {
     const wallpaper = data.wallpaper;
@@ -62,6 +69,8 @@ export async function PUT(request: Request) {
     result.wallpaper = wallpaper;
     result.wallpaper_image_url = imageKey ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: imageKey }), { expiresIn: 15 * 60 }) : null;
     try { await publishRealtime({ type: 'wallpaper', wallpaper, wallpaper_image_url: result.wallpaper_image_url }); } catch (error) { console.error('[chat] wallpaper broadcast failed', error); }
+    const recipientId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
+    await schedulePush(recipientId, 'wallpaper', me.id, { title: 'Chat wallpaper updated', body: 'A new background is waiting in your chat.', url: '/chat', tag: 'quekunle-chat-appearance' });
   }
   return NextResponse.json({ ok: true, ...result });
 }

@@ -5,6 +5,8 @@ import { getSession } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { bucketName, getStorage } from '@/lib/storage';
 import { dateOnly, isDateOnly } from '@/lib/date-only';
+import { schedulePush } from '@/lib/push';
+import { publishRealtime } from '@/lib/realtime';
 
 export const dynamic = 'force-dynamic';
 const allowedMedia = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'video/mp4', 'video/webm', 'video/quicktime']);
@@ -47,5 +49,8 @@ export async function POST(request: Request) {
   const id = Number(rows[0].id);
   if (story) await sql`INSERT INTO memory_contributions (memory_id, user_id, body) VALUES (${id}, ${user.id}, ${story})`;
   for (const item of items) await sql`INSERT INTO memory_media (memory_id, object_key, file_name, content_type) VALUES (${id}, ${item.key}, ${item.name.slice(0, 255)}, ${item.type})`;
+  const recipientId = user.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
+  try { await publishRealtime({ type: 'activity', category: 'memories', actor_id: user.id, title: 'A new memory was added', body: title, url: '/memories' }); } catch (error) { console.error('[memories] realtime broadcast failed', error); }
+  await schedulePush(recipientId, 'memories', user.id, { title: 'A new memory was added', body: title, url: '/memories', tag: `quekunle-memory-${id}` });
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }

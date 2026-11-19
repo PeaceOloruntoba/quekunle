@@ -28,6 +28,8 @@ async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS memory_contributions (memory_id BIGINT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, body TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (memory_id, user_id))`;
   await sql`CREATE TABLE IF NOT EXISTS memory_media (id BIGSERIAL PRIMARY KEY, memory_id BIGINT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, object_key TEXT NOT NULL, file_name TEXT NOT NULL, content_type TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
   await sql`CREATE INDEX IF NOT EXISTS memory_media_memory_id_idx ON memory_media(memory_id, id)`;
+  await sql`CREATE TABLE IF NOT EXISTS push_subscriptions (id BIGSERIAL PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, preferences JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`;
+  await sql`CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx ON push_subscriptions(user_id)`;
   return sql;
 }
 async function seed() {

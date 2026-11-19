@@ -3,6 +3,8 @@ import { getSession } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { bucketName, getStorage } from '@/lib/storage';
 import { publishRealtime } from '@/lib/realtime';
+import { schedulePush } from '@/lib/push';
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 function withUrl(row: Record<string, unknown>) {
   const { id, attachment_key, reply_to_id, ...rest } = row;
@@ -15,10 +17,12 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const sql = database();
   const rows = await sql`SELECT m.id, m.sender_id, u.display_name AS sender_name, m.body, m.attachment_key, m.attachment_name, m.attachment_type, m.reply_to_id, rm.body AS reply_body, ru.display_name AS reply_sender_name, COALESCE((SELECT json_agg(json_build_object('emoji', r.emoji, 'user_id', r.user_id)) FROM reactions r WHERE r.message_id = m.id), '[]'::json) AS reactions, m.created_at, m.read_at FROM messages m JOIN users u ON u.id = m.sender_id LEFT JOIN messages rm ON rm.id = m.reply_to_id LEFT JOIN users ru ON ru.id = rm.sender_id ORDER BY m.created_at DESC LIMIT 100`;
-  const marked = await sql`UPDATE messages SET read_at = now() WHERE sender_id <> ${me.id} AND read_at IS NULL RETURNING id, read_at`;
+  const marked = await sql`UPDATE messages SET read_at = now() WHERE sender_id <> ${me.id} AND read_at IS NULL RETURNING id, sender_id, read_at`;
   if (marked.length) {
     try { await publishRealtime({ type: 'read', ids: marked.map(row => Number(row.id)), read_at: String(marked[0].read_at) }); }
     catch (error) { console.error('[chat] receipt broadcast failed', error); }
+    const senders = new Set(marked.map(row => String(row.sender_id)));
+    await Promise.all([...senders].map(senderId => schedulePush(senderId, 'receipts', me.id, { title: 'Message read', body: 'Your message has been read.', url: '/chat', tag: 'quekunle-read-receipt' })));
   }
   return NextResponse.json({ messages: rows.reverse().map(row => withUrl(row)), me: me.id });
 }
@@ -45,5 +49,8 @@ export async function POST(request: Request) {
   const message = { ...withUrl(rows[0]), reply_body: reply?.body ?? null, reply_sender_name: reply?.sender_name ?? null, reactions: [] };
   try { await publishRealtime({ type: 'message', message }); }
   catch (error) { console.error('[chat] message saved but realtime publish failed', error); }
+  const recipientId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
+  const preview = body || (attachment?.type?.startsWith('image/') ? 'Sent a photo' : attachment?.type?.startsWith('video/') ? 'Sent a video' : attachment?.type?.startsWith('audio/') ? 'Sent a voice note' : 'Sent a document');
+  await schedulePush(recipientId, 'messages', me.id, { title: senderName, body: preview.slice(0, 120), url: '/chat', tag: `quekunle-message-${Number(rows[0].id)}` });
   return NextResponse.json({ ok: true, message }, { status: 201 });
 }

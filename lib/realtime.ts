@@ -5,6 +5,7 @@ type RealtimeEvent =
   | { type: 'read'; ids: number[]; read_at: string }
   | { type: 'reaction'; message_id: number; user_id: string; emoji: string; active: boolean }
   | { type: 'profile'; user_id: string; display_name: string; avatar_url: string | null }
+  | { type: 'activity'; category: 'timeline' | 'memories'; actor_id: string; title: string; body: string; url: string }
   | { type: 'wallpaper'; wallpaper: string; wallpaper_image_url?: string | null; theme?: string };
 type Socket = { send: (data: string) => void; readyState: number };
 type State = { sockets: Set<Socket>; publisher?: Redis; subscriber?: Redis; starting?: Promise<void> };

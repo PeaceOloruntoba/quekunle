@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "Quekunle — A little world for two",
+  "short_name": "Quekunle",
+  "description": "A private little corner for Queen Moyosore and Peace Adekunle.",
+  "start_url": "/chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7faf6",
+  "theme_color": "#287a50",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

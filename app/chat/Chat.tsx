@@ -126,7 +126,7 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
       const data = await response.json();
       for (const message of data.messages as Message[]) mergeMessage(message);
     } catch { /* A later WebSocket reconnect will rehydrate message history. */ }
-  }, [mergeMessage, router]);
+  }, [mergeMessage, router, me.id]);
 
   useEffect(() => {
     let stopped = false;
@@ -149,7 +149,11 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
       ws.onmessage = event => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'message' && data.message) mergeMessage(data.message as Message);
+          if (data.type === 'message' && data.message) {
+            const incoming = data.message as Message;
+            mergeMessage(incoming);
+            if (incoming.sender_id !== me.id && document.visibilityState === 'visible') void load();
+          }
           if (data.type === 'profile' && data.user_id === other.id) { setOtherName(data.display_name); setOtherAvatarUrl(data.avatar_url ?? ''); }
           if (data.type === 'wallpaper' && typeof data.wallpaper === 'string') { setWallpaper(data.wallpaper); setWallpaperImage(data.wallpaper_image_url ?? null); if (data.theme) setTheme(data.theme); }
           if (data.type === 'read' && Array.isArray(data.ids)) {
@@ -179,7 +183,7 @@ export default function Chat({ me, other, initialTheme, initialWallpaper, initia
     void load();
     connect();
     return () => { stopped = true; clearTimeout(retry); clearInterval(fallback); document.removeEventListener('visibilitychange', onVisibilityChange); socket.current?.close(); socket.current = null; };
-  }, [load, mergeMessage, other.id]);
+  }, [load, me.id, mergeMessage, other.id]);
 
   useEffect(() => {
     if (!recording) return;
