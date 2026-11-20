@@ -1,24 +1,55 @@
-'use client';
-import { useEffect } from 'react';
+"use client";
+import { useEffect } from "react";
 
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
-declare global { interface Window { __quekunleInstallPrompt?: InstallEvent } }
+type InstallEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+declare global {
+  interface Window {
+    __twofoldsInstallPrompt?: InstallEvent;
+  }
+}
 export default function PwaBootstrap() {
   useEffect(() => {
-    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js').catch(error => console.error('[pwa] service worker registration failed', error));
+    if ("serviceWorker" in navigator)
+      void navigator.serviceWorker
+        .register("/sw.js")
+        .catch((error) =>
+          console.error("[pwa] service worker registration failed", error),
+        );
     let lastSessionRefresh = 0;
     const refreshSession = () => {
-      if (document.visibilityState !== 'visible' || Date.now() - lastSessionRefresh < 12 * 60 * 60 * 1000) return;
+      if (
+        document.visibilityState !== "visible" ||
+        Date.now() - lastSessionRefresh < 12 * 60 * 60 * 1000
+      )
+        return;
       lastSessionRefresh = Date.now();
-      void fetch('/api/auth/session', { method: 'POST', credentials: 'same-origin', cache: 'no-store' }).catch(() => {});
+      void fetch("/api/auth/session", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+      }).catch(() => {});
     };
     refreshSession();
-    document.addEventListener('visibilitychange', refreshSession);
-    const capture = (event: Event) => { event.preventDefault(); window.__quekunleInstallPrompt = event as InstallEvent; window.dispatchEvent(new Event('quekunle-install-available')); };
-    const installed = () => { window.__quekunleInstallPrompt = undefined; window.dispatchEvent(new Event('quekunle-app-installed')); };
-    window.addEventListener('beforeinstallprompt', capture);
-    window.addEventListener('appinstalled', installed);
-    return () => { document.removeEventListener('visibilitychange', refreshSession); window.removeEventListener('beforeinstallprompt', capture); window.removeEventListener('appinstalled', installed); };
+    document.addEventListener("visibilitychange", refreshSession);
+    const capture = (event: Event) => {
+      event.preventDefault();
+      window.__twofoldsInstallPrompt = event as InstallEvent;
+      window.dispatchEvent(new Event("twofolds-install-available"));
+    };
+    const installed = () => {
+      window.__twofoldsInstallPrompt = undefined;
+      window.dispatchEvent(new Event("twofolds-app-installed"));
+    };
+    window.addEventListener("beforeinstallprompt", capture);
+    window.addEventListener("appinstalled", installed);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshSession);
+      window.removeEventListener("beforeinstallprompt", capture);
+      window.removeEventListener("appinstalled", installed);
+    };
   }, []);
   return null;
 }

@@ -56,7 +56,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
   const [iosInstall, setIosInstall] = useState(false);
   useEffect(() => { fetch('/api/profile', { cache: 'no-store' }).then(r => r.json()).then(d => { if (!d.error) { setData(d); const own = d.users.find((u: Profile) => u.id === me.id); const friend = d.users.find((u: Profile) => u.id !== me.id); if (own) setName(own.display_name); if (friend) setFriendName(friend.display_name); } }).catch(() => setError('Could not load settings.')); }, [me.id]);
   useEffect(() => {
-    const capturePrompt = () => setInstallPrompt((window as any).__quekunleInstallPrompt ?? null);
+    const capturePrompt = () => setInstallPrompt((window as any).__twofoldsInstallPrompt ?? null);
     capturePrompt();
     window.addEventListener('quekunle-install-available', capturePrompt);
     window.addEventListener('quekunle-app-installed', capturePrompt);
@@ -122,7 +122,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
     if (!installPrompt) { setShowInstallGuide(true); return; }
     await installPrompt.prompt();
     await installPrompt.userChoice;
-    (window as any).__quekunleInstallPrompt = undefined;
+    (window as any).__twofoldsInstallPrompt = undefined;
     setInstallPrompt(null);
   }
   async function saveProfile(event: React.FormEvent) {
