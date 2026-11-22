@@ -1,76 +1,241 @@
-import { NextResponse } from 'next/server';
-import { getSession, createSession } from '@/lib/auth';
-import { database } from '@/lib/db';
-import { publishRealtime } from '@/lib/realtime';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { bucketName, getStorage } from '@/lib/storage';
-import { schedulePush } from '@/lib/push';
-export const dynamic = 'force-dynamic';
-const wallpapers = new Set(['garden', 'sky', 'petals', 'night', 'custom']);
+import { NextResponse } from "next/server";
+import { getSession, createSession } from "@/lib/auth";
+import { database } from "@/lib/db";
+import { publishRealtime } from "@/lib/realtime";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { bucketName, getStorage } from "@/lib/storage";
+import { schedulePush } from "@/lib/push";
+export const dynamic = "force-dynamic";
+const wallpapers = new Set(["garden", "sky", "petals", "night", "custom"]);
 export async function GET() {
   const me = await getSession();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sql = database();
   const [users, preferences] = await Promise.all([
     sql`SELECT id, username, display_name, profile_image_key FROM users ORDER BY CASE id WHEN 'queen-moyosore' THEN 1 ELSE 2 END`,
     sql`SELECT theme, wallpaper, wallpaper_image_key FROM chat_settings WHERE id = 1 LIMIT 1`,
   ]);
-  const wallpaperImageUrl = preferences[0]?.wallpaper_image_key ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: String(preferences[0].wallpaper_image_key) }), { expiresIn: 15 * 60 }) : null;
-  return NextResponse.json({ me: me.id, users: users.map(user => ({ id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.profile_image_key ? `/api/profiles/${user.id}/avatar` : null })), theme: preferences[0]?.theme ?? 'garden', wallpaper: preferences[0]?.wallpaper ?? 'garden', wallpaper_image_url: wallpaperImageUrl }, { headers: { 'Cache-Control': 'private, no-store' } });
+  const wallpaperImageUrl = preferences[0]?.wallpaper_image_key
+    ? await getSignedUrl(
+        getStorage(),
+        new GetObjectCommand({
+          Bucket: bucketName(),
+          Key: String(preferences[0].wallpaper_image_key),
+        }),
+        { expiresIn: 15 * 60 },
+      )
+    : null;
+  return NextResponse.json(
+    {
+      me: me.id,
+      users: users.map((user) => ({
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.profile_image_key
+          ? `/api/profiles/${user.id}/avatar`
+          : null,
+      })),
+      theme: preferences[0]?.theme ?? "garden",
+      wallpaper: preferences[0]?.wallpaper ?? "garden",
+      wallpaper_image_url: wallpaperImageUrl,
+    },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
 export async function PUT(request: Request) {
   const me = await getSession();
-  if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const data = await request.json();
   const sql = database();
-  const result: { profile?: { id: string; username: string; display_name: string; avatar_url: string | null }; theme?: string; wallpaper?: string; wallpaper_image_url?: string | null } = {};
+  const result: {
+    profile?: {
+      id: string;
+      username: string;
+      display_name: string;
+      avatar_url: string | null;
+    };
+    theme?: string;
+    wallpaper?: string;
+    wallpaper_image_url?: string | null;
+  } = {};
   if (data.display_name !== undefined || data.profile_image_key !== undefined) {
-    const targetId = typeof data.profile_user_id === 'string' ? data.profile_user_id : me.id;
-    const friendId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
-    if (targetId !== me.id && targetId !== friendId) return NextResponse.json({ error: 'You can only edit the two profiles in this chat.' }, { status: 403 });
-    const existing = targetId === me.id ? [me] : await sql`SELECT id FROM users WHERE id = ${targetId} LIMIT 1`;
-    if (!existing.length) return NextResponse.json({ error: 'That profile could not be found.' }, { status: 404 });
-    const name = typeof data.display_name === 'string' ? data.display_name.trim() : me.display_name;
+    const targetId =
+      typeof data.profile_user_id === "string" ? data.profile_user_id : me.id;
+    const friendId =
+      me.id === "queen-moyosore" ? "peace-adekunle" : "queen-moyosore";
+    if (targetId !== me.id && targetId !== friendId)
+      return NextResponse.json(
+        { error: "You can only edit the two profiles in this chat." },
+        { status: 403 },
+      );
+    const existing =
+      targetId === me.id
+        ? [me]
+        : await sql`SELECT id FROM users WHERE id = ${targetId} LIMIT 1`;
+    if (!existing.length)
+      return NextResponse.json(
+        { error: "That profile could not be found." },
+        { status: 404 },
+      );
+    const name =
+      typeof data.display_name === "string"
+        ? data.display_name.trim()
+        : me.display_name;
     const key = data.profile_image_key;
-    if (name.length < 1 || name.length > 80) return NextResponse.json({ error: 'Name must be between 1 and 80 characters.' }, { status: 400 });
-    if (key !== undefined && targetId !== me.id) return NextResponse.json({ error: 'You can only change your own profile photo.' }, { status: 403 });
-    if (key !== undefined && key !== null && (typeof key !== 'string' || !key.startsWith(`profiles/${me.id}/`))) return NextResponse.json({ error: 'Invalid profile photo.' }, { status: 400 });
-    const rows = key === undefined
-      ? await sql`UPDATE users SET display_name = ${name} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`
-      : await sql`UPDATE users SET display_name = ${name}, profile_image_key = ${key} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`;
+    if (name.length < 1 || name.length > 80)
+      return NextResponse.json(
+        { error: "Name must be between 1 and 80 characters." },
+        { status: 400 },
+      );
+    if (key !== undefined && targetId !== me.id)
+      return NextResponse.json(
+        { error: "You can only change your own profile photo." },
+        { status: 403 },
+      );
+    if (
+      key !== undefined &&
+      key !== null &&
+      (typeof key !== "string" || !key.startsWith(`profiles/${me.id}/`))
+    )
+      return NextResponse.json(
+        { error: "Invalid profile photo." },
+        { status: 400 },
+      );
+    const rows =
+      key === undefined
+        ? await sql`UPDATE users SET display_name = ${name} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`
+        : await sql`UPDATE users SET display_name = ${name}, profile_image_key = ${key} WHERE id = ${targetId} RETURNING id, username, display_name, profile_image_key`;
     const user = rows[0];
-    if (targetId === me.id) await createSession({ id: user.id, username: user.username, display_name: user.display_name });
-    result.profile = { id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.profile_image_key ? `/api/profiles/${user.id}/avatar?v=${Date.now()}` : null };
-    try { await publishRealtime({ type: 'profile', user_id: user.id, display_name: user.display_name, avatar_url: result.profile.avatar_url }); } catch (error) { console.error('[chat] profile broadcast failed', error); }
+    if (targetId === me.id)
+      await createSession({
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+      });
+    result.profile = {
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name,
+      avatar_url: user.profile_image_key
+        ? `/api/profiles/${user.id}/avatar?v=${Date.now()}`
+        : null,
+    };
+    try {
+      await publishRealtime({
+        type: "profile",
+        user_id: user.id,
+        display_name: user.display_name,
+        avatar_url: result.profile.avatar_url,
+      });
+    } catch (error) {
+      console.error("[chat] profile broadcast failed", error);
+    }
     const recipientId = targetId === me.id ? friendId : targetId;
     const actorName = targetId === me.id ? user.display_name : me.display_name;
-    const changed = key !== undefined ? 'updated a profile photo' : `changed a display name to ${user.display_name}`;
-    await schedulePush(recipientId, 'profile', me.id, { title: 'Profile updated', body: `${actorName} ${changed}.`, url: '/settings', tag: `quekunle-profile-${user.id}` });
+    const changed =
+      key !== undefined
+        ? "updated a profile photo"
+        : `changed a display name to ${user.display_name}`;
+    await schedulePush(recipientId, "profile", me.id, {
+      title: "Profile updated",
+      body: `${actorName} ${changed}.`,
+      url: "/settings",
+      tag: `quekunle-profile-${user.id}`,
+    });
   }
   if (data.theme !== undefined) {
     const theme = data.theme;
-    if (typeof theme !== 'string' || !new Set(['garden', 'ocean', 'blossom', 'night']).has(theme)) return NextResponse.json({ error: 'Choose a supported chat colour theme.' }, { status: 400 });
+    if (
+      typeof theme !== "string" ||
+      !new Set(["garden", "ocean", "blossom", "night"]).has(theme)
+    )
+      return NextResponse.json(
+        { error: "Choose a supported chat colour theme." },
+        { status: 400 },
+      );
     await sql`INSERT INTO chat_settings (id, theme) VALUES (1, ${theme}) ON CONFLICT (id) DO UPDATE SET theme = EXCLUDED.theme, updated_by = ${me.id}, updated_at = now()`;
     result.theme = theme;
-    const current = await sql`SELECT wallpaper, wallpaper_image_key FROM chat_settings WHERE id = 1 LIMIT 1`;
-    const imageUrl = current[0]?.wallpaper_image_key ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: String(current[0].wallpaper_image_key) }), { expiresIn: 15 * 60 }) : null;
-    try { await publishRealtime({ type: 'wallpaper', theme, wallpaper: String(current[0]?.wallpaper ?? 'garden'), wallpaper_image_url: imageUrl }); } catch (error) { console.error('[chat] theme broadcast failed', error); }
-    const recipientId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
-    await schedulePush(recipientId, 'wallpaper', me.id, { title: 'Chat colours updated', body: 'Your shared chat look has changed.', url: '/chat', tag: 'quekunle-chat-appearance' });
+    const current =
+      await sql`SELECT wallpaper, wallpaper_image_key FROM chat_settings WHERE id = 1 LIMIT 1`;
+    const imageUrl = current[0]?.wallpaper_image_key
+      ? await getSignedUrl(
+          getStorage(),
+          new GetObjectCommand({
+            Bucket: bucketName(),
+            Key: String(current[0].wallpaper_image_key),
+          }),
+          { expiresIn: 15 * 60 },
+        )
+      : null;
+    try {
+      await publishRealtime({
+        type: "wallpaper",
+        theme,
+        wallpaper: String(current[0]?.wallpaper ?? "garden"),
+        wallpaper_image_url: imageUrl,
+      });
+    } catch (error) {
+      console.error("[chat] theme broadcast failed", error);
+    }
+    const recipientId =
+      me.id === "queen-moyosore" ? "peace-adekunle" : "queen-moyosore";
+    await schedulePush(recipientId, "wallpaper", me.id, {
+      title: "Chat colours updated",
+      body: "Your shared chat look has changed.",
+      url: "/chat",
+      tag: "quekunle-chat-appearance",
+    });
   }
   if (data.wallpaper !== undefined || data.wallpaper_image_key !== undefined) {
     const wallpaper = data.wallpaper;
     const imageKey = data.wallpaper_image_key ?? null;
-    if (typeof wallpaper !== 'string' || !wallpapers.has(wallpaper)) return NextResponse.json({ error: 'Choose a supported wallpaper.' }, { status: 400 });
-    if (wallpaper === 'custom' && (typeof imageKey !== 'string' || !imageKey.startsWith(`wallpapers/${me.id}/`))) return NextResponse.json({ error: 'Choose a wallpaper image first.' }, { status: 400 });
-    if (wallpaper !== 'custom' && imageKey !== null) return NextResponse.json({ error: 'Preset wallpapers cannot include an image.' }, { status: 400 });
+    if (typeof wallpaper !== "string" || !wallpapers.has(wallpaper))
+      return NextResponse.json(
+        { error: "Choose a supported wallpaper." },
+        { status: 400 },
+      );
+    if (
+      wallpaper === "custom" &&
+      (typeof imageKey !== "string" ||
+        !imageKey.startsWith(`wallpapers/${me.id}/`))
+    )
+      return NextResponse.json(
+        { error: "Choose a wallpaper image first." },
+        { status: 400 },
+      );
+    if (wallpaper !== "custom" && imageKey !== null)
+      return NextResponse.json(
+        { error: "Preset wallpapers cannot include an image." },
+        { status: 400 },
+      );
     await sql`INSERT INTO chat_settings (id, theme, wallpaper, wallpaper_image_key, updated_by, updated_at) VALUES (1, 'garden', ${wallpaper}, ${imageKey}, ${me.id}, now()) ON CONFLICT (id) DO UPDATE SET wallpaper = EXCLUDED.wallpaper, wallpaper_image_key = EXCLUDED.wallpaper_image_key, updated_by = EXCLUDED.updated_by, updated_at = now()`;
     result.wallpaper = wallpaper;
-    result.wallpaper_image_url = imageKey ? await getSignedUrl(getStorage(), new GetObjectCommand({ Bucket: bucketName(), Key: imageKey }), { expiresIn: 15 * 60 }) : null;
-    try { await publishRealtime({ type: 'wallpaper', wallpaper, wallpaper_image_url: result.wallpaper_image_url }); } catch (error) { console.error('[chat] wallpaper broadcast failed', error); }
-    const recipientId = me.id === 'queen-moyosore' ? 'peace-adekunle' : 'queen-moyosore';
-    await schedulePush(recipientId, 'wallpaper', me.id, { title: 'Chat wallpaper updated', body: 'A new background is waiting in your chat.', url: '/chat', tag: 'quekunle-chat-appearance' });
+    result.wallpaper_image_url = imageKey
+      ? await getSignedUrl(
+          getStorage(),
+          new GetObjectCommand({ Bucket: bucketName(), Key: imageKey }),
+          { expiresIn: 15 * 60 },
+        )
+      : null;
+    try {
+      await publishRealtime({
+        type: "wallpaper",
+        wallpaper,
+        wallpaper_image_url: result.wallpaper_image_url,
+      });
+    } catch (error) {
+      console.error("[chat] wallpaper broadcast failed", error);
+    }
+    const recipientId =
+      me.id === "queen-moyosore" ? "peace-adekunle" : "queen-moyosore";
+    await schedulePush(recipientId, "wallpaper", me.id, {
+      title: "Chat wallpaper updated",
+      body: "A new background is waiting in your chat.",
+      url: "/chat",
+      tag: "quekunle-chat-appearance",
+    });
   }
   return NextResponse.json({ ok: true, ...result });
 }
