@@ -7,7 +7,7 @@ type InstallEvent = Event & {
 };
 declare global {
   interface Window {
-    __twofoldsInstallPrompt?: InstallEvent;
+    __twofoldInstallPrompt?: InstallEvent;
   }
 }
 export default function PwaBootstrap() {
@@ -36,12 +36,12 @@ export default function PwaBootstrap() {
     document.addEventListener("visibilitychange", refreshSession);
     const capture = (event: Event) => {
       event.preventDefault();
-      window.__twofoldsInstallPrompt = event as InstallEvent;
-      window.dispatchEvent(new Event("twofolds-install-available"));
+      window.__twofoldInstallPrompt = event as InstallEvent;
+      window.dispatchEvent(new Event("twofold-install-available"));
     };
     const installed = () => {
-      window.__twofoldsInstallPrompt = undefined;
-      window.dispatchEvent(new Event("twofolds-app-installed"));
+      window.__twofoldInstallPrompt = undefined;
+      window.dispatchEvent(new Event("twofold-app-installed"));
     };
     window.addEventListener("beforeinstallprompt", capture);
     window.addEventListener("appinstalled", installed);

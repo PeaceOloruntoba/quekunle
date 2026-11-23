@@ -1,7 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const COOKIE = "quekunle_session";
+const COOKIE = "twofold_session";
+const LEGACY_COOKIE = "quekunle_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 90;
 function key() {
   const secret = process.env.SESSION_SECRET;
@@ -29,7 +30,8 @@ export async function createSession(user: {
   });
 }
 export async function getSession() {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const jar = await cookies();
+  const token = jar.get(COOKIE)?.value ?? jar.get(LEGACY_COOKIE)?.value;
   if (!token) return null;
   try {
     return (await jwtVerify(token, key())).payload as {
@@ -42,5 +44,7 @@ export async function getSession() {
   }
 }
 export async function clearSession() {
-  (await cookies()).delete(COOKIE);
+  const jar = await cookies();
+  jar.delete(COOKIE);
+  jar.delete(LEGACY_COOKIE);
 }

@@ -170,7 +170,7 @@ export async function POST(request: Request) {
     title: "A new memory was added",
     body: title,
     url: "/memories",
-    tag: `quekunle-memory-${id}`,
+    tag: `twofold-memory-${id}`,
   });
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }

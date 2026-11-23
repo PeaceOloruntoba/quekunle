@@ -53,7 +53,7 @@ async function seed() {
     await sql`INSERT INTO users (id, username, display_name, password_hash) VALUES (${user.id}, ${user.username}, ${user.display_name}, ${hash}) ON CONFLICT (username) DO UPDATE SET display_name = EXCLUDED.display_name`;
   }
   console.log(
-    "Database schema is ready and both Quekunle accounts are seeded. Existing password hashes are left unchanged.",
+    "Database schema is ready and both TwoFold accounts are seeded. Existing password hashes are left unchanged.",
   );
 }
 seed().catch((err) => {

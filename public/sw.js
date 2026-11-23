@@ -1,4 +1,4 @@
-const CACHE_NAME = "twofolds-static-v1";
+const CACHE_NAME = "twofold-static-v1";
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -30,12 +30,12 @@ self.addEventListener("push", (event) => {
         event.data?.text() || "There is something new in your little world.",
     };
   }
-  const title = payload.title || "TwoFolds";
+  const title = payload.title || "TwoFold";
   const options = {
     body: payload.body || "Open your private space to catch up.",
     icon: "/icon.svg",
     badge: "/icon.svg",
-    tag: payload.tag || "twofolds-update",
+    tag: payload.tag || "twofold-update",
     renotify: Boolean(payload.renotify),
     data: { url: payload.url || "/chat" },
   };

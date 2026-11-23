@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "TwoFolds — A little world for two",
-  "short_name": "TwoFolds",
+  "name": "TwoFold — A little world for two",
+  "short_name": "TwoFold",
   "description": "A private little corner for Queen Moyosore and Peace Adekunle.",
   "start_url": "/chat",
   "scope": "/",

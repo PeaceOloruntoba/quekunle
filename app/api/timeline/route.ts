@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     title: "A timeline moment was added",
     body: title,
     url: "/#our-timeline",
-    tag: `quekunle-timeline-${Number(rows[0].id)}`,
+    tag: `twofold-timeline-${Number(rows[0].id)}`,
   });
   return NextResponse.json({ event }, { status: 201 });
 }

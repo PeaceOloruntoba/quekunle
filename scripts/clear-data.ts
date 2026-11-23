@@ -4,7 +4,7 @@ import { database } from "../lib/db";
 import { bucketName, getStorage } from "../lib/storage";
 
 loadEnvConfig(process.cwd());
-const CONFIRM_FLAG = "--confirm-clear-quekunle";
+const CONFIRM_FLAG = "--confirm-clear-twofold";
 const confirmed = process.argv.includes(CONFIRM_FLAG);
 
 async function listAllObjectKeys() {

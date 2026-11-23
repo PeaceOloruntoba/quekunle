@@ -37,9 +37,9 @@ type State = {
   subscriber?: Redis;
   starting?: Promise<void>;
 };
-const shared = globalThis as typeof globalThis & { __quekunleRealtime?: State };
-const state = (shared.__quekunleRealtime ??= { sockets: new Set() });
-const CHANNEL = "quekunle:chat:v1";
+const shared = globalThis as typeof globalThis & { __twofoldRealtime?: State };
+const state = (shared.__twofoldRealtime ??= { sockets: new Set() });
+const CHANNEL = "twofold:chat:v1";
 
 async function ensureRedis() {
   const url = process.env.REDIS_URL;

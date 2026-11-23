@@ -54,7 +54,7 @@ export async function PUT(
       title: "A timeline moment was updated",
       body: title,
       url: "/#our-timeline",
-      tag: `quekunle-timeline-${id}`,
+      tag: `twofold-timeline-${id}`,
     });
   }
   return rows.length
@@ -105,7 +105,7 @@ export async function DELETE(
       title: "A timeline moment was removed",
       body: String(rows[0].title),
       url: "/#our-timeline",
-      tag: `quekunle-timeline-${id}`,
+      tag: `twofold-timeline-${id}`,
     });
   }
   return NextResponse.json({ ok: true });

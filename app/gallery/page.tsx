@@ -2,7 +2,7 @@ import MemoryWall from "../MemoryWall";
 import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Our Memory Gallery — TwoFolds",
+  title: "Our Memory Gallery — TwoFold",
   description:
     "A few favourite moments from Queen Moyosore and Peace Adekunle, kept with love.",
 };

@@ -47,7 +47,7 @@ export async function GET() {
           title: "Message read",
           body: "Your message has been read.",
           url: "/chat",
-          tag: "quekunle-read-receipt",
+          tag: "twofold-read-receipt",
         }),
       ),
     );
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
     title: senderName,
     body: preview.slice(0, 120),
     url: "/chat",
-    tag: `quekunle-message-${Number(rows[0].id)}`,
+    tag: `twofold-message-${Number(rows[0].id)}`,
   });
   return NextResponse.json({ ok: true, message }, { status: 201 });
 }

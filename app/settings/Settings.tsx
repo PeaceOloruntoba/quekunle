@@ -111,10 +111,10 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
   }, [me.id]);
   useEffect(() => {
     const capturePrompt = () =>
-      setInstallPrompt((window as any).__twofoldsInstallPrompt ?? null);
+      setInstallPrompt((window as any).__twofoldInstallPrompt ?? null);
     capturePrompt();
-    window.addEventListener("twofolds-install-available", capturePrompt);
-    window.addEventListener("twofolds-app-installed", capturePrompt);
+    window.addEventListener("twofold-install-available", capturePrompt);
+    window.addEventListener("twofold-app-installed", capturePrompt);
     setIosInstall(isIOSDevice());
     void (async () => {
       try {
@@ -146,8 +146,8 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
           setPushError("Could not register notifications on this browser."),
         );
     return () => {
-      window.removeEventListener("twofolds-install-available", capturePrompt);
-      window.removeEventListener("twofolds-app-installed", capturePrompt);
+      window.removeEventListener("twofold-install-available", capturePrompt);
+      window.removeEventListener("twofold-app-installed", capturePrompt);
     };
   }, []);
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
         Boolean((navigator as any).standalone);
       if (isIOS && !isInstalled)
         throw new Error(
-          "On iPhone or iPad, install TwoFolds from Safari's Share menu first, then enable push from the home screen app.",
+          "On iPhone or iPad, install TwoFold from Safari's Share menu first, then enable push from the home screen app.",
         );
       if (
         !("serviceWorker" in navigator) ||
@@ -189,7 +189,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
         !("Notification" in window)
       )
         throw new Error(
-          "This browser does not support web push notifications. Try installing TwoFolds in a current browser.",
+          "This browser does not support web push notifications. Try installing TwoFold in a current browser.",
         );
       if (!pushPublicKey)
         throw new Error(
@@ -277,7 +277,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
     }
     await installPrompt.prompt();
     await installPrompt.userChoice;
-    (window as any).__twofoldsInstallPrompt = undefined;
+    (window as any).__twofoldInstallPrompt = undefined;
     setInstallPrompt(null);
   }
   async function saveProfile(event: React.FormEvent) {
@@ -687,7 +687,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
               <Smartphone size={17} />
             </div>
             <span>
-              <strong>Add TwoFolds to your home screen</strong>
+              <strong>Add TwoFold to your home screen</strong>
               <small>
                 Open it like an app and keep your little world close.
               </small>
@@ -832,7 +832,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
           className="photo-lightbox install-guide"
           role="dialog"
           aria-modal="true"
-          aria-label="Install TwoFolds"
+          aria-label="Install TwoFold"
           onClick={() => setShowInstallGuide(false)}
         >
           <article onClick={(event) => event.stopPropagation()}>
@@ -846,7 +846,7 @@ export default function Settings({ me }: { me: { id: string; name: string } }) {
             <div className="settings-icon">
               <Smartphone size={20} />
             </div>
-            <h2>Add TwoFolds to your home screen</h2>
+            <h2>Add TwoFold to your home screen</h2>
             <p>
               {iosInstall
                 ? "In Safari, tap the Share button, then choose “Add to Home Screen”. Web push on iPhone and iPad works from the installed home screen app."

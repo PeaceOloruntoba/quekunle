@@ -11,18 +11,18 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://quekunle.vercel.app",
   ),
-  title: "TwoFolds — A little world for two",
+  title: "TwoFold — A little world for two",
   description:
     "A little private corner for Queen Moyosore and Peace Adekunle. Just the two of us, always in conversation.",
-  keywords: ["TwoFolds", "private chat", "Queen Moyosore", "Peace Adekunle"],
+  keywords: ["TwoFold", "private chat", "Queen Moyosore", "Peace Adekunle"],
   openGraph: {
-    title: "TwoFolds — A little world for two",
+    title: "TwoFold — A little world for two",
     description: "A private little corner made for two.",
     type: "website",
   },
   robots: { index: true, follow: true },
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, title: "TwoFolds", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "TwoFold", statusBarStyle: "default" },
   icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
 };
 export default function RootLayout({

@@ -39,7 +39,7 @@ function vapidToken(endpoint: string) {
     JSON.stringify({
       aud: audience,
       exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
-      sub: process.env.VAPID_SUBJECT || "mailto:hello@quekunle.app",
+      sub: process.env.VAPID_SUBJECT || "mailto:hello@twofold.app",
     }),
   );
   const unsigned = `${header}.${claims}`;

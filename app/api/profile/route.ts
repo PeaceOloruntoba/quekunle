@@ -142,7 +142,7 @@ export async function PUT(request: Request) {
       title: "Profile updated",
       body: `${actorName} ${changed}.`,
       url: "/settings",
-      tag: `quekunle-profile-${user.id}`,
+      tag: `twofold-profile-${user.id}`,
     });
   }
   if (data.theme !== undefined) {
@@ -185,7 +185,7 @@ export async function PUT(request: Request) {
       title: "Chat colours updated",
       body: "Your shared chat look has changed.",
       url: "/chat",
-      tag: "quekunle-chat-appearance",
+      tag: "twofold-chat-appearance",
     });
   }
   if (data.wallpaper !== undefined || data.wallpaper_image_key !== undefined) {
@@ -234,7 +234,7 @@ export async function PUT(request: Request) {
       title: "Chat wallpaper updated",
       body: "A new background is waiting in your chat.",
       url: "/chat",
-      tag: "quekunle-chat-appearance",
+      tag: "twofold-chat-appearance",
     });
   }
   return NextResponse.json({ ok: true, ...result });

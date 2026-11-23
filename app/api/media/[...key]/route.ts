@@ -18,7 +18,7 @@ export async function GET(
   const filename = (
     new URL(request.url).searchParams.get("filename") ||
     objectKey.split("/").pop() ||
-    "quekunle-attachment"
+    "twofold-attachment"
   ).replace(/[^a-zA-Z0-9._-]/g, "_");
   const url = await getSignedUrl(
     getStorage(),

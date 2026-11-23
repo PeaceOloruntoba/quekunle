@@ -56,7 +56,7 @@ export async function PUT(
       ? story.slice(0, 120)
       : "A memory note or gallery setting changed.",
     url: "/memories",
-    tag: `quekunle-memory-${id}`,
+    tag: `twofold-memory-${id}`,
   });
   return NextResponse.json({ ok: true });
 }
